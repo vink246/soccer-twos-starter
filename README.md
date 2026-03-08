@@ -74,4 +74,54 @@ To examine the baseline agent, you must extract the `ceia_baseline_agent` folder
 , to examine the random agent vs. the baseline agent.
 
 
+## Team-specific additions
+
+This section describes additions made by the team for training and running on shared infrastructure (e.g. PACE ICE).
+
+### `train_ppo_team.py` — PPO training with run folders and plots
+
+A dedicated PPO training script that:
+
+- **Run folders**: Each run is stored in its own timestamped directory under `team_runs/` (e.g. `team_runs/PPO_team_20260308_193000/`). Checkpoints and plots live under that folder.
+- **Dashboard disabled**: Uses `ray.init(include_dashboard=False)` to avoid hostname resolution issues on WSL and on PACE head nodes.
+- **Plots every N steps**: Saves learning-curve plots (episode reward mean vs timesteps/iteration) every N training iterations into the trial's `plots/` subfolder. Requires `matplotlib` (`pip install matplotlib`).
+- **GPU**: Uses 1 GPU by default. Override with `--num-gpus` or set `PACE_NUM_GPUS` / `NUM_GPUS` in the environment (e.g. on PACE ICE).
+
+**Usage**
+
+```bash
+# Default: team_runs/PPO_team_<timestamp>, plot every 10 iters, 2M timesteps
+python train_ppo_team.py
+
+# Custom output dir, plot frequency, and max timesteps
+python train_ppo_team.py --output-dir my_runs --plot-freq 5 --max-timesteps 500000
+
+# More workers, explicit GPU count
+python train_ppo_team.py --num-workers 8 --num-gpus 1
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|--------|-------------|
+| `--output-dir` | `team_runs` | Base directory for run folders. |
+| `--plot-freq` | `10` | Save a plot every N training iterations. |
+| `--max-timesteps` | `2000000` | Stop after this many env timesteps. |
+| `--num-workers` | `8` | Number of Ray workers. |
+| `--num-gpus` | 1 (or env) | Number of GPUs (overrides `PACE_NUM_GPUS` / `NUM_GPUS`). |
+
+**Running on PACE ICE**
+
+- Run the script from your job script or interactive allocation as you would any Python job.
+- To use multiple GPUs, set `PACE_NUM_GPUS` (or `NUM_GPUS`) in the job environment, or pass `--num-gpus N`.
+- The dashboard is disabled by default, so no web UI; use the saved plots in each run's `plots/` folder to monitor progress.
+- Checkpoints are written under the same run directory (e.g. `team_runs/PPO_team_<timestamp>/PPO_Soccer/.../checkpoint_*/`).
+
+**Optional dependency for plots**
+
+```bash
+pip install matplotlib
+```
+
+If `matplotlib` is not installed, training still runs but no plot files are saved.
 
