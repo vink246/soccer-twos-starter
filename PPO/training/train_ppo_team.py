@@ -19,13 +19,32 @@ import argparse
 import os
 from datetime import datetime
 
+import gym
 import yaml
 import ray
 from ray import tune
 from ray.tune import Callback
+from ray.rllib import MultiAgentEnv
+import soccer_twos
 from soccer_twos import EnvType
 
-from utils import create_rllib_env
+
+def create_rllib_env(env_config: dict = None):
+    """Create a RLlib-compatible Soccer-Twos env. Used by Ray workers."""
+    if env_config is None:
+        env_config = {}
+    env_config = dict(env_config)
+    if hasattr(env_config, "worker_index"):
+        env_config["worker_id"] = (
+            env_config.worker_index * env_config.get("num_envs_per_worker", 1)
+            + env_config.vector_index
+        )
+    env = soccer_twos.make(**env_config)
+    if env_config.get("multiagent") is False:
+        return env
+    class _RLLibWrapper(gym.core.Wrapper, MultiAgentEnv):
+        pass
+    return _RLLibWrapper(env)
 
 # Try matplotlib for saving plots (optional but recommended)
 try:
