@@ -96,7 +96,9 @@ PPO/
 ```
 
 - **`PPO/configs/`** — YAML configs. Use `config.yaml` as the default; copy it to create per-run configs (e.g. `config_fast.yaml`, `config_long.yaml`) and pass with `--config PPO/configs/config_fast.yaml`.
-- **`PPO/training/train_ppo_team.py`** — Entry point. Expects to be run from the **repository root** (so `utils` and `soccer_twos` resolve). Reads the chosen config and starts Ray + RLlib PPO.
+- **`PPO/training/train_ppo_team.py`** — Entry point. Expects to be run from the **repository root**. Reads the chosen config and starts Ray + RLlib PPO. Imports shared helpers from `training_utils` (see below).
+
+**Shared training utilities (`training_utils.py` in repo root)** — Reusable across PPO, DQN, and other RLlib algorithms: `create_rllib_env` (Soccer-Twos with unique worker_id per Ray worker), `load_config`, `get_num_gpus`, `print_gpu_status`, `PlotCallback`, `ProgressPrintCallback`, `has_matplotlib`. Example for a future DQN script: import these and register the env with `tune.run("DQN", ...)` using the same callbacks.
 
 ### Config file (`PPO/configs/config.yaml`)
 
