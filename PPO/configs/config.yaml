@@ -4,7 +4,7 @@
 
 # Run / output
 run:
-  output_dir: team_runs
+  output_dir: my_runs
   max_timesteps: 2000000
   plot_freq: 10
   checkpoint_freq: 100
