@@ -74,54 +74,92 @@ To examine the baseline agent, you must extract the `ceia_baseline_agent` folder
 , to examine the random agent vs. the baseline agent.
 
 
+## PPO
+
+This section describes the PPO (Proximal Policy Optimization) training setup: layout, config file, and how to run it.
+
+### Overview
+
+- **Algorithm**: PPO via [Ray RLlib](https://docs.ray.io/en/latest/rllib/index.html). The policy is a neural network (MLP) that maps observations to actions.
+- **Setting**: Single-agent Soccer-Twos — one controlled agent vs a fixed opponent (e.g. always action 0). The env is `team_vs_policy` with `single_player=True` and flattened observations/actions.
+- **Run layout**: Each training run gets its own timestamped directory. Inside it, Ray writes checkpoints, and our callbacks write learning-curve plots and a progress table to the console.
+- **Config**: Run and RLlib options are read from a YAML config file so you can maintain different configs per experiment (e.g. short run vs long run). CLI flags override the config file.
+
+### Folder structure
+
+```
+PPO/
+├── configs/
+│   └── config.yaml      # Default config (run, resources, rllib)
+└── training/
+    └── train_ppo_team.py   # Training script (run from repo root)
+```
+
+- **`PPO/configs/`** — YAML configs. Use `config.yaml` as the default; copy it to create per-run configs (e.g. `config_fast.yaml`, `config_long.yaml`) and pass with `--config PPO/configs/config_fast.yaml`.
+- **`PPO/training/train_ppo_team.py`** — Entry point. Expects to be run from the **repository root** (so `utils` and `soccer_twos` resolve). Reads the chosen config and starts Ray + RLlib PPO.
+
+### Config file (`PPO/configs/config.yaml`)
+
+The YAML has three top-level keys:
+
+| Section      | Purpose |
+|-------------|---------|
+| `run`       | Output and run control: `output_dir`, `max_timesteps`, `plot_freq`, `checkpoint_freq`. |
+| `resources` | Ray/RLlib resources: `num_workers`, `num_gpus`, `num_envs_per_worker`. |
+| `rllib`     | Passed into RLlib: `log_level`, `framework`, `model` (e.g. `fcnet_hiddens`), `rollout_fragment_length`, `train_batch_size`. |
+
+Anything not set in the config falls back to script defaults. The env (e.g. `opponent_policy`) is fixed in code and is not configurable via YAML.
+
+### How to run
+
+From the **repository root**:
+
+```bash
+# Default config (PPO/configs/config.yaml)
+python PPO/training/train_ppo_team.py
+
+# Custom config for this run
+python PPO/training/train_ppo_team.py --config PPO/configs/config_fast.yaml
+
+# Override options from the command line (override config file)
+python PPO/training/train_ppo_team.py --max-timesteps 500000 --output-dir my_runs --num-gpus 0
+```
+
+**CLI flags** (all override the config file):
+
+| Flag | Overrides | Example |
+|------|-----------|--------|
+| `--config` | Which YAML to load | `--config PPO/configs/config.yaml` |
+| `--output-dir` | `run.output_dir` | `--output-dir my_runs` |
+| `--max-timesteps` | `run.max_timesteps` | `--max-timesteps 1000000` |
+| `--plot-freq` | `run.plot_freq` | `--plot-freq 5` |
+| `--num-workers` | `resources.num_workers` | `--num-workers 4` |
+| `--num-gpus` | `resources.num_gpus` | `--num-gpus 0` (CPU only) |
+
+### Outputs
+
+- **Run directory**: `{output_dir}/PPO_team_{timestamp}/` (e.g. `team_runs/PPO_team_20260308_120000/`). Set `output_dir` in the config or with `--output-dir`.
+- **Checkpoints**: Under the run directory, in the Ray trial folder (e.g. `.../PPO_Soccer_xxx/checkpoint_000100/checkpoint-100`). Used for resuming or for the watch script.
+- **Plots**: In the trial’s `plots/` subfolder — learning-curve images saved every `plot_freq` iterations.
+- **Console**: A progress table (iteration, timesteps, reward mean, progress %) and, at startup, GPU status and the config path.
+
+### GPU and PACE
+
+- At startup the script prints whether PyTorch sees CUDA and how many GPUs you requested. Use `--num-gpus 0` for CPU-only if you hit CUDA “no kernel image” errors.
+- On PACE ICE, set `PACE_NUM_GPUS` (or `NUM_GPUS`) in the job environment if you want to override the config’s `num_gpus` without passing `--num-gpus`.
+
+
 ## Team-specific additions
 
 This section describes additions made by the team for training and running on shared infrastructure (e.g. PACE ICE).
 
-### `train_ppo_team.py` — PPO training with run folders and plots
+### PPO training (`PPO/training/train_ppo_team.py`)
 
-A dedicated PPO training script that:
+The main PPO training entry point is described in the **PPO** section above. In short:
 
-- **Run folders**: Each run is stored in its own timestamped directory under `team_runs/` (e.g. `team_runs/PPO_team_20260308_193000/`). Checkpoints and plots live under that folder.
-- **Dashboard disabled**: Uses `ray.init(include_dashboard=False)` to avoid hostname resolution issues on WSL and on PACE head nodes.
-- **Plots every N steps**: Saves learning-curve plots (episode reward mean vs timesteps/iteration) every N training iterations into the trial's `plots/` subfolder. Requires `matplotlib` (`pip install matplotlib`).
-- **GPU**: Uses 1 GPU by default. Override with `--num-gpus` or set `PACE_NUM_GPUS` / `NUM_GPUS` in the environment (e.g. on PACE ICE).
-
-**Usage**
-
-```bash
-# Default: team_runs/PPO_team_<timestamp>, plot every 10 iters, 2M timesteps
-python train_ppo_team.py
-
-# Custom output dir, plot frequency, and max timesteps
-python train_ppo_team.py --output-dir my_runs --plot-freq 5 --max-timesteps 500000
-
-# More workers, explicit GPU count
-python train_ppo_team.py --num-workers 8 --num-gpus 1
-```
-
-**Options**
-
-| Option | Default | Description |
-|--------|--------|-------------|
-| `--output-dir` | `team_runs` | Base directory for run folders. |
-| `--plot-freq` | `10` | Save a plot every N training iterations. |
-| `--max-timesteps` | `2000000` | Stop after this many env timesteps. |
-| `--num-workers` | `8` | Number of Ray workers. |
-| `--num-gpus` | 1 (or env) | Number of GPUs (overrides `PACE_NUM_GPUS` / `NUM_GPUS`). |
-
-**Running on PACE ICE**
-
-- Run the script from your job script or interactive allocation as you would any Python job.
-- To use multiple GPUs, set `PACE_NUM_GPUS` (or `NUM_GPUS`) in the job environment, or pass `--num-gpus N`.
-- The dashboard is disabled by default, so no web UI; use the saved plots in each run's `plots/` folder to monitor progress.
-- Checkpoints are written under the same run directory (e.g. `team_runs/PPO_team_<timestamp>/PPO_Soccer/.../checkpoint_*/`).
-
-**Optional dependency for plots**
-
-```bash
-pip install matplotlib
-```
-
-If `matplotlib` is not installed, training still runs but no plot files are saved.
+- **Config**: Options are read from `PPO/configs/config.yaml` (or a file you pass with `--config`). You can create one config per run (e.g. `config_fast.yaml`, `config_long.yaml`).
+- **Run from repo root**: `python PPO/training/train_ppo_team.py` or `python PPO/training/train_ppo_team.py --config PPO/configs/your_config.yaml --max-timesteps 500000`.
+- **Outputs**: Each run gets a timestamped folder under `team_runs/` (or the `output_dir` in your config). Checkpoints and plots are written there; the script prints a progress table and GPU status.
+- **Dashboard**: Uses `ray.init(include_dashboard=False)` to avoid hostname/socket issues on WSL and PACE.
+- **GPU**: Use `--num-gpus 0` for CPU-only if you see CUDA "no kernel image" errors. See the PPO section for more detail.
 

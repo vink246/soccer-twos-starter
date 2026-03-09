@@ -1,0 +1,29 @@
+# PPO training config for Soccer-Twos
+# Copy this file to create per-run configs (e.g. config_fast.yaml, config_long.yaml).
+# Path: pass with --config PPO/configs/your_config.yaml
+
+# Run / output
+run:
+  output_dir: team_runs
+  max_timesteps: 2000000
+  plot_freq: 10
+  checkpoint_freq: 100
+
+# Resources (CLI flags override these)
+resources:
+  num_workers: 8
+  num_gpus: 1
+  num_envs_per_worker: 3
+
+# RLlib PPO / model (passed to tune.run config)
+rllib:
+  log_level: INFO
+  framework: torch
+  model:
+    vf_share_layers: true
+    fcnet_hiddens: [512]
+  rollout_fragment_length: 500
+  train_batch_size: 12000
+
+# Env is fixed: team_vs_policy, single_player, flatten_branched, opponent_policy=0
+# (opponent_policy cannot be set from YAML; it is defined in code.)
