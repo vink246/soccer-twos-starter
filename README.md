@@ -4,46 +4,36 @@ Example training/testing scripts for the Soccer-Twos environment. This starter c
 
 Environment-level specification code can be found at https://github.com/bryanoliveira/soccer-twos-env, which may also be useful to reference.
 
-## Requirements
+## Setup
 
-- Python 3.8
-- See [requirements.txt](requirements.txt)
+Create and activate the conda environment from the included YAML (Python 3.8 and all dependencies):
 
-## Usage
-
-### 1. Fork this repository
-
+```bash
+# Clone the repo and enter it
 git clone https://github.com/your-github-user/soccer-twos-starter.git
+cd soccer-twos-starter
 
-cd soccer-twos-starter/
+# Create the environment from environment.yml
+conda env create -f environment.yml
 
-### 2. Create and activate conda environment
-conda create --name soccertwos python=3.8 -y
-
+# Activate it (use the env name from the file, or the name you gave with -n)
 conda activate soccertwos
+```
 
-### 3. Downgrade build tools for compatibility
-pip install pip==23.3.2 setuptools==65.5.0 wheel==0.38.4
+If the YAML’s `name:` or `prefix:` point at a specific path (e.g. a shared or home path), create the env with a local name instead:
 
-pip cache purge
+```bash
+conda env create -f environment.yml -n soccertwos
+conda activate soccertwos
+```
 
-### 4. Install requirements
-pip install -r requirements.txt
+Alternatively, edit `environment.yml` and set `name: soccertwos` (and remove or leave `prefix:`); then `conda env create -f environment.yml` will create an env named `soccertwos`.
 
-### 5. Fix protobuf and pydantic compatibility
-pip install protobuf==3.20.3
+To update an existing environment from the YAML:
 
-pip install pydantic==1.10.13
-
-### 5. Run `python example_random.py` to watch a random agent play the game
-python example_random_players.py
-
-### 6. Train using any of the example scripts
-python example_ray_ppo_sp_still.py
-
-python example_ray_team_vs_random.py
-
-etc.
+```bash
+conda env update -f environment.yml -n soccertwos --prune
+```
 
 ## Agent Packaging
 
