@@ -1,43 +1,24 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from .core import RewardContext, RewardTerm
 
 
-def _safe_array(obs: Any) -> Optional[np.ndarray]:
-    if obs is None:
-        return None
-    try:
-        arr = np.asarray(obs, dtype=np.float32).reshape(-1)
-        return arr
-    except Exception:
-        return None
-
-
-def _xy_from_info(info_item: Any, key: str) -> Optional[np.ndarray]:
+def _xy_from_player_ball_info(info_item: Any, key: str) -> Optional[np.ndarray]:
     if not isinstance(info_item, dict):
         return None
-    value = info_item.get(key)
-    if value is None:
-        return None
-    try:
-        arr = np.asarray(value, dtype=np.float32).reshape(-1)
-        if arr.shape[0] >= 2:
-            return arr[:2]
-    except Exception:
-        return None
+    nested = info_item.get(key)
+    if isinstance(nested, dict):
+        val = nested.get("position")
+        if val is not None:
+            try:
+                arr = np.asarray(val, dtype=np.float32).reshape(-1)
+                if arr.shape[0] >= 2:
+                    return arr[:2]
+            except Exception:
+                return None
     return None
-
-
-def _xy_from_obs(obs: Any, indices: List[int]) -> Optional[np.ndarray]:
-    arr = _safe_array(obs)
-    if arr is None or len(indices) < 2:
-        return None
-    i0, i1 = int(indices[0]), int(indices[1])
-    if i0 < 0 or i1 < 0 or i0 >= arr.shape[0] or i1 >= arr.shape[0]:
-        return None
-    return np.array([arr[i0], arr[i1]], dtype=np.float32)
 
 
 def _norm_distance(a: np.ndarray, b: np.ndarray, scale: float = 1.0) -> float:
@@ -45,9 +26,6 @@ def _norm_distance(a: np.ndarray, b: np.ndarray, scale: float = 1.0) -> float:
 
 
 def _extract_positions(ctx: RewardContext) -> Dict[str, Any]:
-    cfg = ctx.cfg.get("observation_indices", {})
-    ball_idx = cfg.get("ball_xy", [0, 1])
-    self_idx = cfg.get("self_xy", [2, 3])
     opp_goal_xy = np.asarray(ctx.cfg.get("opponent_goal_xy", [1.0, 0.0]), dtype=np.float32)
 
     out = {
@@ -55,14 +33,26 @@ def _extract_positions(ctx: RewardContext) -> Dict[str, Any]:
         "self_xy": {},
         "opp_goal_xy": opp_goal_xy,
     }
-    for aid, obs in ctx.obs.items():
+    for aid in ctx.obs.keys():
         info_item = ctx.info.get(aid, {}) if isinstance(ctx.info, dict) else {}
-        ball_xy = _xy_from_info(info_item, "ball_position")
-        self_xy = _xy_from_info(info_item, "player_position")
-        if ball_xy is None:
-            ball_xy = _xy_from_obs(obs, ball_idx)
-        if self_xy is None:
-            self_xy = _xy_from_obs(obs, self_idx)
+        ball_xy = _xy_from_player_ball_info(info_item, "ball_info")
+        self_xy = _xy_from_player_ball_info(info_item, "player_info")
+
+        # multiagent_team: info[team_id][player_local_id] -> per-player dicts
+        if (ball_xy is None or self_xy is None) and isinstance(info_item, dict):
+            nested_players = [v for v in info_item.values() if isinstance(v, dict)]
+            if nested_players:
+                player_positions = []
+                for player_entry in nested_players:
+                    bxy = _xy_from_player_ball_info(player_entry, "ball_info")
+                    pxy = _xy_from_player_ball_info(player_entry, "player_info")
+                    if ball_xy is None and bxy is not None:
+                        ball_xy = bxy
+                    if pxy is not None:
+                        player_positions.append(pxy)
+                if self_xy is None and player_positions:
+                    self_xy = np.mean(np.stack(player_positions, axis=0), axis=0)
+
         out["ball_xy"][aid] = ball_xy
         out["self_xy"][aid] = self_xy
     return out
@@ -93,25 +83,25 @@ class BallGoalDistanceTerm(RewardTerm):
 class BallProgressTerm(RewardTerm):
     """
     Potential-based reward: progress of ball towards opponent goal between steps.
+    Uses info.ball_info.position only (no observation-vector indices).
     """
 
     name = "ball_progress"
 
     def compute(self, ctx: RewardContext) -> Dict[int, float]:
-        if ctx.prev_obs is None:
+        if ctx.prev_info is None:
             return {aid: 0.0 for aid in ctx.obs.keys()}
-        cfg = ctx.cfg.get("observation_indices", {})
-        ball_idx = cfg.get("ball_xy", [0, 1])
         goal = np.asarray(ctx.cfg.get("opponent_goal_xy", [1.0, 0.0]), dtype=np.float32)
         scale = float(ctx.cfg.get("distance_norm_scale", 1.5))
         rewards = {}
         for aid in ctx.obs.keys():
-            prev_ball = _xy_from_obs(ctx.prev_obs.get(aid), ball_idx)
-            cur_ball = _xy_from_obs(ctx.obs.get(aid), ball_idx)
-            info_item = ctx.info.get(aid, {}) if isinstance(ctx.info, dict) else {}
-            info_ball = _xy_from_info(info_item, "ball_position")
-            if info_ball is not None:
-                cur_ball = info_ball
+            prev_ball = None
+            if isinstance(ctx.prev_info, dict):
+                prev_ball = _xy_from_player_ball_info(ctx.prev_info.get(aid, {}), "ball_info")
+            cur_ball = _xy_from_player_ball_info(
+                ctx.info.get(aid, {}) if isinstance(ctx.info, dict) else {},
+                "ball_info",
+            )
             if prev_ball is None or cur_ball is None:
                 rewards[aid] = 0.0
                 continue
@@ -145,7 +135,6 @@ class TrajectorySupportTerm(RewardTerm):
                 rewards[aid] = 0.0
                 continue
             rel = p - b
-            # Distance from point to line defined by b + t*bg.
             dist_line = abs(np.cross(bg, rel)) / norm
             rewards[aid] = max(0.0, 1.0 - dist_line / max(lane_width, 1e-6))
         return rewards
@@ -159,12 +148,31 @@ class OpponentPressureTerm(RewardTerm):
 
     name = "opponent_pressure"
 
-    def _default_opponents(self, aid: int) -> Tuple[int, int]:
-        return (2, 3) if aid in (0, 1) else (0, 1)
+    def _opponent_ids(self, aid: int, all_ids: List[int], team_map: Dict[str, List[int]]) -> List[int]:
+        if team_map:
+            own_team = None
+            for _, members in team_map.items():
+                if aid in members:
+                    own_team = members
+                    break
+            if own_team is not None:
+                return [x for x in all_ids if x not in own_team]
+        if len(all_ids) == 2:
+            return [x for x in all_ids if x != aid]
+        if len(all_ids) == 4:
+            return [2, 3] if aid in (0, 1) else [0, 1]
+        return [x for x in all_ids if x != aid]
 
     def compute(self, ctx: RewardContext) -> Dict[int, float]:
         pos = _extract_positions(ctx)
         scale = float(ctx.cfg.get("distance_norm_scale", 1.5))
+        all_ids = sorted(int(a) for a in ctx.obs.keys())
+        team_map_cfg = ctx.cfg.get("team_map", {})
+        team_map = {}
+        if isinstance(team_map_cfg, dict):
+            for key, val in team_map_cfg.items():
+                if isinstance(val, list):
+                    team_map[key] = [int(x) for x in val]
         rewards = {}
         for aid in ctx.obs.keys():
             ball_xy = pos["ball_xy"].get(aid)
@@ -172,7 +180,7 @@ class OpponentPressureTerm(RewardTerm):
                 rewards[aid] = 0.0
                 continue
             min_opp_dist = None
-            for oid in self._default_opponents(int(aid)):
+            for oid in self._opponent_ids(int(aid), all_ids, team_map):
                 opp_xy = pos["self_xy"].get(oid)
                 if opp_xy is None:
                     continue

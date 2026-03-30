@@ -116,7 +116,7 @@ Configure all reward weights and safeguards in `env.reward`:
 - `dense_weight`, `sparse_weight`
 - `dense_clip`, `dense_budget_per_episode`
 - `goal_reward_dominates` and `goal_reward_threshold`
-- `observation_indices` for extracting state features from observations
+- `info` fields from the env (`ball_info` / `player_info` positions) for geometry-based terms
 
 This supports both single-agent and multiagent modes.
 

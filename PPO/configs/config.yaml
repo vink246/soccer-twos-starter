@@ -29,50 +29,46 @@ rllib:
 
 # Environment mode + reward shaping
 env:
-  variation: multiagent_player   # team_vs_policy | multiagent_team | multiagent_player
-  multiagent: true
-  single_player: false
-  flatten_branched: true
+  variation: multiagent_player   # Env variant: team_vs_policy | multiagent_team | multiagent_player
+  multiagent: true               # true = env returns dict obs/reward per agent
+  single_player: false           # only relevant for team_vs_policy mode
+  flatten_branched: true         # flatten MultiDiscrete action branches for RLlib
   reward:
-    enabled: true
-    sparse_weight: 1.0
-    dense_weight: 0.05
-    dense_warmup_steps: 0
-    dense_budget_per_episode: 50.0
-    goal_reward_dominates: true
-    goal_reward_threshold: 0.9
-    distance_norm_scale: 1.5
-    trajectory_lane_width: 0.4
-    opponent_goal_xy: [1.0, 0.0]
+    enabled: true                # enable PPO-side reward shaping wrapper
+    sparse_weight: 1.0           # multiplier for base env reward
+    dense_weight: 0.05           # multiplier for summed dense terms
+    dense_warmup_steps: 0        # steps before dense shaping starts
+    dense_budget_per_episode: 50.0  # cap on total abs dense reward per episode
+    goal_reward_dominates: true  # if goal reward appears, ignore dense shaping that step
+    goal_reward_threshold: 0.9   # abs(base_reward) threshold to treat as terminal goal
+    distance_norm_scale: 1.5     # normalization scale for distance-based terms
+    trajectory_lane_width: 0.4   # width for trajectory_support term
+    opponent_goal_xy: [1.0, 0.0] # goal location used by distance/progress terms
     team_map:
-      team_0: [0, 1]
-      team_1: [2, 3]
-    # Adjust these indices based on your observation layout.
-    observation_indices:
-      ball_xy: [0, 1]
-      self_xy: [2, 3]
+      team_0: [0, 1]             # agent ids on team 0
+      team_1: [2, 3]             # agent ids on team 1
     dense_clip:
-      enabled: true
-      min: -1.0
-      max: 1.0
+      enabled: true              # clip total dense reward per agent per step
+      min: -1.0                  # lower clip bound
+      max: 1.0                   # upper clip bound
     enabled_terms:
-      - ball_progress
-      - ball_goal_distance
-      - trajectory_support
-      - opponent_pressure
+      - ball_progress            # potential-based ball progress toward goal
+      - ball_goal_distance       # negative distance from ball to opponent goal
+      - trajectory_support       # reward proximity to ball->goal lane
+      - opponent_pressure        # reward pushing opponents away from ball lane
     terms:
       ball_progress:
-        enabled: true
-        weight: 1.0
+        enabled: true            # include this term in dense sum
+        weight: 1.0              # relative weight for this term
       ball_goal_distance:
-        enabled: true
-        weight: 0.3
+        enabled: true            # include this term in dense sum
+        weight: 0.3              # relative weight for this term
       trajectory_support:
-        enabled: true
-        weight: 0.2
+        enabled: true            # include this term in dense sum
+        weight: 0.2              # relative weight for this term
       opponent_pressure:
-        enabled: true
-        weight: 0.1
+        enabled: true            # include this term in dense sum
+        weight: 0.1              # relative weight for this term
 
 # Multiagent policy mapping mode
 multiagent:

@@ -7,6 +7,7 @@ class RewardContext:
     """Context passed to reward terms each step."""
 
     prev_obs: Optional[Dict[int, Any]]
+    prev_info: Optional[Dict[int, Any]]
     obs: Dict[int, Any]
     base_reward: Dict[int, float]
     info: Dict[int, Any]
