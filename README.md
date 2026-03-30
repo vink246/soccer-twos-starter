@@ -100,7 +100,85 @@ The YAML has three top-level keys:
 | `resources` | Ray/RLlib resources: `num_workers`, `num_gpus`, `num_envs_per_worker`. |
 | `rllib`     | Passed into RLlib: `log_level`, `framework`, `model` (e.g. `fcnet_hiddens`), `rollout_fragment_length`, `train_batch_size`. |
 
-Anything not set in the config falls back to script defaults. The env (e.g. `opponent_policy`) is fixed in code and is not configurable via YAML.
+Anything not set in the config falls back to script defaults. Env mode and reward shaping are now configurable through YAML (`env` and `multiagent` sections).
+
+### Reward framework (new)
+
+`PPO/rewards/` now provides an env-wrapper reward composer that blends sparse env reward with dense shaping terms:
+
+- `ball_progress` (potential-based ball progress toward opponent goal)
+- `ball_goal_distance` (negative distance to opponent goal)
+- `trajectory_support` (player proximity to ball-to-goal line)
+- `opponent_pressure` (proxy for reducing opponent interception ability)
+
+Configure all reward weights and safeguards in `env.reward`:
+
+- `dense_weight`, `sparse_weight`
+- `dense_clip`, `dense_budget_per_episode`
+- `goal_reward_dominates` and `goal_reward_threshold`
+- `observation_indices` for extracting state features from observations
+
+This supports both single-agent and multiagent modes.
+
+Quickly inspect per-term reward outputs with a short random rollout:
+
+```bash
+python PPO/eval/smoke_test_rewards.py --config PPO/configs/config.yaml --steps 200 --print-every 10
+```
+
+### Multiagent policy control modes (new)
+
+You can train with one policy per team or one policy per player using:
+
+- `env.variation` (`multiagent_team` or `multiagent_player`)
+- `env.multiagent: true`
+- `multiagent.policy_mode`:
+  - `team_shared`: one policy controls both teammates (team-level control)
+  - `per_player`: each player has its own policy
+  - `shared_all`: one shared policy for all 4 players
+
+### Model architecture control (new)
+
+`PPO/training/model_config.py` exposes model presets and pass-through overrides from YAML:
+
+- Presets: `small`, `baseline`, `large`, `residual_mlp`
+- Override with any RLlib model keys under `rllib.model` (e.g. `fcnet_hiddens`, `fcnet_activation`, `vf_share_layers`, LSTM/custom model options)
+
+### Playback / rendering (new)
+
+Render checkpoint-vs-checkpoint or checkpoint-vs-random matches:
+
+```bash
+python PPO/eval/render_match.py \
+  --team-a-checkpoint /path/to/checkpoint-100 \
+  --team-b-checkpoint /path/to/checkpoint-100 \
+  --policy-mode team_shared \
+  --output-video PPO/runs/match.mp4
+```
+
+Stop condition defaults to first goal or 120 seconds.
+
+### PACE ICE / HOPPER submission scripts (new)
+
+Two submit helpers are included:
+
+- `scripts/submit_ppo_hopper.sh` (choose `h100` or `h200`)
+- `scripts/submit_ppo_a100.sh`
+
+Both request 8-hour jobs and run `PPO/training/train_ppo_team.py`, writing checkpoints and results under the configured run output directory.
+
+Examples:
+
+```bash
+# HOPPER H100
+bash scripts/submit_ppo_hopper.sh h100 PPO/configs/config.yaml my_exp_h100
+
+# HOPPER H200
+bash scripts/submit_ppo_hopper.sh h200 PPO/configs/config.yaml my_exp_h200
+
+# A100
+bash scripts/submit_ppo_a100.sh PPO/configs/config.yaml my_exp_a100
+```
 
 ### How to run
 

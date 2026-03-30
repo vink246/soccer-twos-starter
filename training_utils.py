@@ -17,6 +17,11 @@ from ray.tune import Callback
 import soccer_twos
 
 try:
+    from PPO.rewards import RewardShapingWrapper
+except Exception:
+    RewardShapingWrapper = None
+
+try:
     import yaml
 except ImportError:
     yaml = None
@@ -47,7 +52,14 @@ def create_rllib_env(env_config=None):
         num_envs_per_worker = config_dict.get("num_envs_per_worker", 1)
         worker_id = context.worker_index * num_envs_per_worker + context.vector_index
         config_dict["worker_id"] = worker_id
+    reward_cfg = config_dict.pop("reward", None)
     env = soccer_twos.make(**config_dict)
+    if (
+        isinstance(reward_cfg, dict)
+        and reward_cfg.get("enabled", False)
+        and RewardShapingWrapper is not None
+    ):
+        env = RewardShapingWrapper(env, reward_cfg)
     if config_dict.get("multiagent") is False:
         return env
     class RLLibWrapper(gym.core.Wrapper, MultiAgentEnv):

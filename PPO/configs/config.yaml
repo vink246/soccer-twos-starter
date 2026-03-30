@@ -4,7 +4,7 @@
 
 # Run / output
 run:
-  output_dir: my_runs
+  output_dir: runs
   max_timesteps: 2000000
   plot_freq: 10
   checkpoint_freq: 10
@@ -20,10 +20,60 @@ rllib:
   log_level: INFO
   framework: torch
   model:
+    preset: baseline
     vf_share_layers: true
-    fcnet_hiddens: [512]
+    fcnet_hiddens: [512, 512]
+    fcnet_activation: relu
   rollout_fragment_length: 500
   train_batch_size: 12000
 
-# Env is fixed: team_vs_policy, single_player, flatten_branched, opponent_policy=0
-# (opponent_policy cannot be set from YAML; it is defined in code.)
+# Environment mode + reward shaping
+env:
+  variation: multiagent_player   # team_vs_policy | multiagent_team | multiagent_player
+  multiagent: true
+  single_player: false
+  flatten_branched: true
+  reward:
+    enabled: true
+    sparse_weight: 1.0
+    dense_weight: 0.05
+    dense_warmup_steps: 0
+    dense_budget_per_episode: 50.0
+    goal_reward_dominates: true
+    goal_reward_threshold: 0.9
+    distance_norm_scale: 1.5
+    trajectory_lane_width: 0.4
+    opponent_goal_xy: [1.0, 0.0]
+    team_map:
+      team_0: [0, 1]
+      team_1: [2, 3]
+    # Adjust these indices based on your observation layout.
+    observation_indices:
+      ball_xy: [0, 1]
+      self_xy: [2, 3]
+    dense_clip:
+      enabled: true
+      min: -1.0
+      max: 1.0
+    enabled_terms:
+      - ball_progress
+      - ball_goal_distance
+      - trajectory_support
+      - opponent_pressure
+    terms:
+      ball_progress:
+        enabled: true
+        weight: 1.0
+      ball_goal_distance:
+        enabled: true
+        weight: 0.3
+      trajectory_support:
+        enabled: true
+        weight: 0.2
+      opponent_pressure:
+        enabled: true
+        weight: 0.1
+
+# Multiagent policy mapping mode
+multiagent:
+  policy_mode: team_shared   # team_shared | per_player | shared_all
