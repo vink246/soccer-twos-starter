@@ -7,7 +7,7 @@ run:
   output_dir: my_runs
   max_timesteps: 2000000
   plot_freq: 10
-  checkpoint_freq: 100
+  checkpoint_freq: 10
 
 # Resources (CLI flags override these)
 resources:
