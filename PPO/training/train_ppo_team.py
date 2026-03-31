@@ -37,6 +37,7 @@ from training_utils import (
     has_matplotlib,
 )
 from PPO.training.model_config import build_model_config
+from PPO.training.goal_metrics_callbacks import GoalStatsCallbacks
 
 import ray
 from ray import tune
@@ -190,6 +191,9 @@ def main():
 
     if is_multiagent:
         ppo_config["multiagent"] = _build_multiagent_config(base_env_config, policy_mode)
+
+    # RLlib-side callbacks for extra metrics (goals_for / goals_against).
+    ppo_config["callbacks"] = GoalStatsCallbacks
 
     print(
         "Env mode:",
