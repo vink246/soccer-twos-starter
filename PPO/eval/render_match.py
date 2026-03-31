@@ -148,7 +148,8 @@ def _get_action(
     if trainer is None:
         return None
     policy_id = team_policy_ids.get(team) or "default"
-    action = trainer.compute_single_action(obs, policy_id=policy_id)
+    # Ray 1.4 PPOTrainer uses compute_action (compute_single_action was added later).
+    action = trainer.compute_action(obs, policy_id=policy_id)
     return action
 
 
