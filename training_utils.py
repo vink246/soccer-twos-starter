@@ -48,10 +48,15 @@ def create_rllib_env(env_config=None):
         config_dict = dict(context.config.get("env_config", {}))
     else:
         config_dict = {}
+    # Optional: force Unity worker_id (e.g. render_match.py) — RLlib otherwise overwrites
+    # worker_id from worker_index/vector_index, which collides with a separate Unity env.
+    fixed_unity_worker_id = config_dict.pop("fixed_unity_worker_id", None)
     if hasattr(context, "worker_index") and hasattr(context, "vector_index"):
         num_envs_per_worker = config_dict.get("num_envs_per_worker", 1)
         worker_id = context.worker_index * num_envs_per_worker + context.vector_index
         config_dict["worker_id"] = worker_id
+    if fixed_unity_worker_id is not None:
+        config_dict["worker_id"] = int(fixed_unity_worker_id)
     reward_cfg = config_dict.pop("reward", None)
     env = soccer_twos.make(**config_dict)
     if (

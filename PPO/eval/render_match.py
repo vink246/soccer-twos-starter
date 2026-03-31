@@ -89,8 +89,8 @@ def _build_trainer(
         "env_config": env_config,
         "multiagent": {
             "policies": policies,
-            "policy_mapping_fn": tune.function(
-                lambda aid, *args, **kwargs: _policy_for_agent(int(aid), policy_mode)
+            "policy_mapping_fn": lambda aid, *args, **kwargs: _policy_for_agent(
+                int(aid), policy_mode
             ),
             "policies_to_train": [],
         },
@@ -163,20 +163,24 @@ def main():
             "base_port": args.base_port,
         }
         # Build spaces from a short-lived non-render env, then close it.
-        space_env = create_rllib_env({**env_config, "worker_id": args.render_worker_id + 100})
+        space_env = create_rllib_env(
+            {**env_config, "worker_id": args.render_worker_id + 100}
+        )
         obs_space = space_env.observation_space
         act_space = space_env.action_space
         space_env.close()
 
         # Separate render env process/port from trainer env processes.
-        env = create_rllib_env({**env_config, "render": True, "worker_id": args.render_worker_id})
+        env = create_rllib_env(
+            {**env_config, "render": True, "worker_id": args.render_worker_id}
+        )
 
         team_trainers = {"A": None, "B": None}
         if args.team_a_strategy == "checkpoint":
             team_trainers["A"] = _build_trainer(
                 args.team_a_checkpoint,
                 args.policy_mode,
-                {**env_config, "worker_id": args.team_a_worker_id},
+                {**env_config, "fixed_unity_worker_id": args.team_a_worker_id},
                 obs_space,
                 act_space,
             )
@@ -184,7 +188,7 @@ def main():
             team_trainers["B"] = _build_trainer(
                 args.team_b_checkpoint,
                 args.policy_mode,
-                {**env_config, "worker_id": args.team_b_worker_id},
+                {**env_config, "fixed_unity_worker_id": args.team_b_worker_id},
                 obs_space,
                 act_space,
             )
