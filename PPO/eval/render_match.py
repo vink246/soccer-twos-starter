@@ -118,6 +118,12 @@ def _assemble_base_env_and_ppo_config(
     if is_multiagent:
         ppo_config["multiagent"] = _build_multiagent_config(base_env_config, policy_mode)
 
+    # Training may use num_envs_per_worker>1; RLlib then creates that many Unity processes.
+    # fixed_unity_worker_id in training_utils applies to every sub-env, so all would share
+    # one worker id and collide. Eval must use a single env per rollout worker.
+    ppo_config["num_envs_per_worker"] = 1
+    base_env_config["num_envs_per_worker"] = 1
+
     return base_env_config, ppo_config
 
 
