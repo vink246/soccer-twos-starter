@@ -3,10 +3,11 @@
 from typing import Any, Dict, Tuple
 
 from soccer_rl.algorithms.ppo.env_config import (
+    apply_team_vs_opponent,
     build_multiagent_config,
     get_env_type,
-    zero_opponent_policy,
 )
+from soccer_twos import EnvType
 from soccer_rl.algorithms.ppo.training.model_config import build_model_config
 
 NUM_ENVS_PER_WORKER_TRAINING_DEFAULT = 3
@@ -47,9 +48,15 @@ def build_ppo_restore_configs(
         "multiagent": is_multiagent,
         "single_player": bool(env_cfg.get("single_player", True)),
         "flatten_branched": bool(env_cfg.get("flatten_branched", True)),
-        "opponent_policy": zero_opponent_policy,
         "base_port": base_port,
     }
+    apply_team_vs_opponent(
+        base_env_config,
+        env_cfg,
+        is_team_vs=get_env_type(variation_name) == EnvType.team_vs_policy,
+        self_play_enabled=False,
+        team_vs_self_play=None,
+    )
     if use_reward_wrapper:
         base_env_config["reward"] = reward_cfg
 

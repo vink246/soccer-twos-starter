@@ -1,10 +1,4 @@
-# Default PPO training YAML (backward compatible): multiagent_player + dense rewards.
-# Same content as ppo_baseline_multiagent_player_dense.yaml.
-# Presets in this folder:
-#   ppo_baseline_multiagent_player_sparse.yaml
-#   ppo_baseline_multiagent_player_dense.yaml
-#   ppo_team_vs_self_play_sparse.yaml / ppo_team_vs_self_play_dense.yaml
-#   ppo_team_vs_random_opponent_sparse.yaml / ppo_team_vs_random_opponent_dense.yaml
+# PPO — team_vs_policy + self-play schedule + dense reward shaping.
 
 run:
   output_dir: runs
@@ -29,9 +23,9 @@ rllib:
   train_batch_size: 12000
 
 env:
-  variation: multiagent_player
-  multiagent: true
-  single_player: false
+  variation: team_vs_policy
+  multiagent: false
+  single_player: true
   flatten_branched: true
   reward:
     enabled: true
@@ -69,6 +63,11 @@ env:
       opponent_pressure:
         enabled: true
         weight: 0.1
+  team_vs_self_play:
+    enabled: true
+    swap_every_n_episodes: 500
+    policy_id: default
+    opponent_stochastic: false
 
 multiagent:
-  policy_mode: team_shared
+  policy_mode: shared_all

@@ -17,6 +17,39 @@ def zero_opponent_policy(*_):
     return 0
 
 
+def apply_team_vs_opponent(
+    base_env_config: Dict[str, Any],
+    env_cfg: Dict[str, Any],
+    *,
+    is_team_vs: bool,
+    self_play_enabled: bool,
+    team_vs_self_play: Dict[str, Any] = None,
+) -> None:
+    """
+    Mutate ``base_env_config`` for ``team_vs_policy`` only.
+
+    - Self-play: attach ``team_vs_self_play``; omit ``opponent_policy`` (Unity default random
+      until the training callback swaps in the learned policy).
+    - Else ``env.team_vs_opponent``: ``random`` → omit ``opponent_policy`` (Unity samples
+      actions); ``zero`` → ``zero_opponent_policy`` (constant action 0).
+    """
+    base_env_config.pop("opponent_policy", None)
+    base_env_config.pop("team_vs_self_play", None)
+    if not is_team_vs:
+        return
+    if self_play_enabled:
+        base_env_config["team_vs_self_play"] = dict(team_vs_self_play or {})
+        return
+    mode = str(env_cfg.get("team_vs_opponent", "zero")).lower().strip()
+    if mode == "random":
+        return
+    if mode == "zero":
+        base_env_config["opponent_policy"] = zero_opponent_policy
+        return
+    print(f"Warning: unknown env.team_vs_opponent {mode!r}; using zero (action 0).")
+    base_env_config["opponent_policy"] = zero_opponent_policy
+
+
 def get_env_type(name: str):
     mapping = {
         "team_vs_policy": EnvType.team_vs_policy,

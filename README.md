@@ -136,7 +136,8 @@ soccer_rl/
 └── algorithms/
     ├── ppo/
     │   ├── configs/
-    │   │   └── config.yaml      # Default PPO YAML
+    │   │   ├── config.yaml       # Default = dense multiagent_player (see ppo_*.yaml presets)
+    │   │   └── ppo_*.yaml        # Sparse/dense presets (baseline, team_vs self-play, vs random)
     │   ├── training/
     │   │   ├── train_ppo_team.py
     │   │   ├── model_config.py
@@ -149,22 +150,24 @@ soccer_rl/
     └── dqn/                     # placeholder
 ```
 
-- **`soccer_rl/algorithms/ppo/configs/`** — YAML configs. Use `config.yaml` as the default; copy it for per-run configs and pass with `--config soccer_rl/algorithms/ppo/configs/config_fast.yaml`.
+- **`soccer_rl/algorithms/ppo/configs/`** — YAML configs. Default entry is `config.yaml` (dense `multiagent_player`). Named presets: `ppo_baseline_multiagent_player_{sparse,dense}.yaml`, `ppo_team_vs_self_play_{sparse,dense}.yaml`, `ppo_team_vs_random_opponent_{sparse,dense}.yaml`. Pass any file with `--config ...`.
 - **`soccer_rl/algorithms/ppo/training/train_ppo_team.py`** — Entry point. Run from the **repository root**. Reads the chosen config and starts Ray + RLlib PPO. Uses `soccer_rl.common.training_utils` (and the root `training_utils` shim for backward compatibility).
 
 **Shared training utilities** — `soccer_rl.common.training_utils` (and root `training_utils.py`): reusable across PPO, DQN, SAC — `create_rllib_env`, `load_config`, `get_num_gpus`, `print_gpu_status`, `PlotCallback`, `ProgressPrintCallback`, `has_matplotlib`.
 
-### Config file (`soccer_rl/algorithms/ppo/configs/config.yaml`)
+### Config files (`soccer_rl/algorithms/ppo/configs/`)
 
-The YAML has three top-level keys:
+`config.yaml` matches `ppo_baseline_multiagent_player_dense.yaml`. Other presets swap `env` / `reward` (sparse = `reward.enabled: false`). The YAML has these top-level keys (among others):
 
 | Section      | Purpose |
 |-------------|---------|
 | `run`       | Output and run control: `output_dir`, `max_timesteps`, `plot_freq`, `checkpoint_freq`. |
 | `resources` | Ray/RLlib resources: `num_workers`, `num_gpus`, `num_envs_per_worker`. |
 | `rllib`     | Passed into RLlib: `log_level`, `framework`, `model` (e.g. `fcnet_hiddens`), `rollout_fragment_length`, `train_batch_size`. |
+| `env`       | `variation`, `multiagent`, `reward`, `team_vs_opponent`, `team_vs_self_play`, etc. |
+| `multiagent`| `policy_mode` when `env.multiagent: true`. |
 
-Anything not set in the config falls back to script defaults. Env mode and reward shaping are now configurable through YAML (`env` and `multiagent` sections).
+Anything not set in the config falls back to script defaults.
 
 ### Reward framework (new)
 
@@ -229,27 +232,16 @@ The script **loads checkpoints and headless training Unity first**, then opens t
 
 Stop condition defaults to first goal or 120 seconds.
 
-### PACE ICE / HOPPER submission scripts (new)
+### Slurm submit script (Tesla V100)
 
-Two submit helpers are included:
-
-- `scripts/submit_ppo_hopper.sh` (choose `h100` or `h200`)
-- `scripts/submit_ppo_a100.sh`
-
-Both request 8-hour jobs and run `soccer_rl/algorithms/ppo/training/train_ppo_team.py`, writing checkpoints and results under the configured run output directory.
-
-Examples:
+`scripts/submit_ppo_v100.sh` submits an 8-hour job requesting **one V100** (`--gres=gpu:v100:1`), **no partition** (scheduler default). It runs `train_ppo_team.py` with the config path you pass and writes under `runs/<RUN_TAG>/` (or `OUTPUT_DIR`).
 
 ```bash
-# HOPPER H100
-bash scripts/submit_ppo_hopper.sh h100 soccer_rl/algorithms/ppo/configs/config.yaml my_exp_h100
-
-# HOPPER H200
-bash scripts/submit_ppo_hopper.sh h200 soccer_rl/algorithms/ppo/configs/config.yaml my_exp_h200
-
-# A100
-bash scripts/submit_ppo_a100.sh soccer_rl/algorithms/ppo/configs/config.yaml my_exp_a100
+bash scripts/submit_ppo_v100.sh soccer_rl/algorithms/ppo/configs/config.yaml my_exp_v100
+bash scripts/submit_ppo_v100.sh soccer_rl/algorithms/ppo/configs/ppo_team_vs_self_play_dense.yaml self_play_dense
 ```
+
+Optional env overrides: `CONDA_ENV`, `OUTPUT_DIR`, `LOG_DIR`.
 
 ### How to run
 

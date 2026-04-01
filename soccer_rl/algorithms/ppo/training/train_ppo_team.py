@@ -35,14 +35,17 @@ from soccer_rl.common.training_utils import (
 )
 from soccer_rl.algorithms.ppo.training.model_config import build_model_config
 from soccer_rl.algorithms.ppo.training.goal_metrics_callbacks import GoalStatsCallbacks
+from soccer_rl.algorithms.ppo.training.opponent_self_play_callbacks import OpponentSelfPlayCallbacks
 from soccer_rl.algorithms.ppo.env_config import (
+    apply_team_vs_opponent,
     build_multiagent_config,
     get_env_type,
-    zero_opponent_policy,
 )
 
 import ray
 from ray import tune
+from ray.rllib.agents.callbacks import MultiCallbacks
+from soccer_twos import EnvType
 
 NUM_ENVS_PER_WORKER = 3
 DEFAULT_PLOT_FREQ = 10
@@ -107,14 +110,37 @@ def main():
     if reward_cfg and "team_map" not in reward_cfg:
         reward_cfg["team_map"] = {"team_0": [0, 1], "team_1": [2, 3]}
 
+    team_vs_self_play = env_cfg.get("team_vs_self_play") or {}
+    self_play_enabled = bool(team_vs_self_play.get("enabled", False))
+    is_team_vs = get_env_type(variation_name) == EnvType.team_vs_policy
+
     base_env_config = {
         "num_envs_per_worker": num_envs_per_worker,
         "variation": get_env_type(variation_name),
         "multiagent": is_multiagent,
         "single_player": bool(env_cfg.get("single_player", True)),
         "flatten_branched": bool(env_cfg.get("flatten_branched", True)),
-        "opponent_policy": zero_opponent_policy,
     }
+    if self_play_enabled and not is_team_vs:
+        print(
+            "Warning: team_vs_self_play.enabled is true but env.variation is not "
+            "team_vs_policy; ignoring self-play opponent schedule."
+        )
+        self_play_enabled = False
+
+    apply_team_vs_opponent(
+        base_env_config,
+        env_cfg,
+        is_team_vs=is_team_vs,
+        self_play_enabled=self_play_enabled,
+        team_vs_self_play=team_vs_self_play,
+    )
+
+    if self_play_enabled and not base_env_config["single_player"]:
+        print(
+            "Warning: team_vs_self_play works reliably with env.single_player: true "
+            "(policy obs must match per-opponent-player obs). Consider enabling single_player."
+        )
     if use_reward_wrapper:
         base_env_config["reward"] = reward_cfg
     elif env_cfg.get("goal_reward_threshold") is not None:
@@ -139,7 +165,11 @@ def main():
     if is_multiagent:
         ppo_config["multiagent"] = build_multiagent_config(base_env_config, policy_mode)
 
-    ppo_config["callbacks"] = GoalStatsCallbacks
+    ppo_config["callbacks"] = (
+        MultiCallbacks([GoalStatsCallbacks, OpponentSelfPlayCallbacks])
+        if self_play_enabled
+        else GoalStatsCallbacks
+    )
 
     print(
         "Env mode:",
@@ -150,6 +180,20 @@ def main():
         policy_mode if is_multiagent else "single_policy",
     )
     print("Reward shaping:", "enabled" if use_reward_wrapper else "disabled")
+    if self_play_enabled:
+        print(
+            "Team vs self-play:",
+            "swap every",
+            int((team_vs_self_play or {}).get("swap_every_n_episodes", 0) or 0),
+            "completed training episodes",
+        )
+    elif is_team_vs:
+        print(
+            "Team vs opponent:",
+            "random"
+            if "opponent_policy" not in base_env_config
+            else str(env_cfg.get("team_vs_opponent", "zero")),
+        )
 
     analysis = tune.run(
         "PPO",

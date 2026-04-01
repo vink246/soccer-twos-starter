@@ -1,10 +1,4 @@
-# Default PPO training YAML (backward compatible): multiagent_player + dense rewards.
-# Same content as ppo_baseline_multiagent_player_dense.yaml.
-# Presets in this folder:
-#   ppo_baseline_multiagent_player_sparse.yaml
-#   ppo_baseline_multiagent_player_dense.yaml
-#   ppo_team_vs_self_play_sparse.yaml / ppo_team_vs_self_play_dense.yaml
-#   ppo_team_vs_random_opponent_sparse.yaml / ppo_team_vs_random_opponent_dense.yaml
+# PPO — multiagent_player + dense reward shaping (same preset as default config.yaml).
 
 run:
   output_dir: runs

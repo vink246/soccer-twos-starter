@@ -60,6 +60,7 @@ def create_rllib_env(env_config=None):
     if fixed_unity_worker_id is not None:
         config_dict["worker_id"] = int(fixed_unity_worker_id)
     reward_cfg = config_dict.pop("reward", None)
+    config_dict.pop("team_vs_self_play", None)  # training driver-only; not for soccer_twos.make
     goal_th = float(config_dict.pop("goal_reward_threshold", 0.9))
     if isinstance(reward_cfg, dict):
         goal_th = float(reward_cfg.get("goal_reward_threshold", goal_th))

@@ -1,0 +1,35 @@
+# PPO — team_vs_policy vs fixed random opponent; Unity sparse rewards only.
+
+run:
+  output_dir: runs
+  max_timesteps: 2000000
+  plot_freq: 10
+  checkpoint_freq: 10
+
+resources:
+  num_workers: 8
+  num_gpus: 1
+  num_envs_per_worker: 3
+
+rllib:
+  log_level: INFO
+  framework: torch
+  model:
+    preset: baseline
+    vf_share_layers: true
+    fcnet_hiddens: [512, 512]
+    fcnet_activation: relu
+  rollout_fragment_length: 500
+  train_batch_size: 12000
+
+env:
+  variation: team_vs_policy
+  multiagent: false
+  single_player: true
+  flatten_branched: true
+  team_vs_opponent: random
+  reward:
+    enabled: false
+
+multiagent:
+  policy_mode: shared_all
