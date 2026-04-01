@@ -1,0 +1,13 @@
+# Set to your RLlib checkpoint path (relative to this folder or absolute), or use SOCCER_PPO_CHECKPOINT.
+# Example: checkpoint/checkpoint-100  or  ../runs/PPO_team_.../PPO_Soccer_xxx/checkpoint_000100/checkpoint-100
+checkpoint_path: null
+
+# Same YAML as training; leave null to use soccer_rl/algorithms/ppo/configs/config.yaml from repo root.
+training_config_path: null
+
+# Which side this module controls when using -m1 / -m2 (blue = team_0, orange = team_1).
+team_side: blue
+
+# Optional overrides (usually unnecessary):
+# base_port: 50039
+# unity_worker_id: 95

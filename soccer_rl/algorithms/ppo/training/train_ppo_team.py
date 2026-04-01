@@ -1,16 +1,16 @@
 """
 Team PPO training script for Soccer-Twos.
 
-- Reads run and RLlib options from a YAML config (default: PPO/configs/config.yaml).
+- Reads run and RLlib options from a YAML config (default: soccer_rl/algorithms/ppo/configs/config.yaml).
 - CLI flags override config file values.
 - Puts each run in its own timestamped folder under team_runs/ (or config run.output_dir).
 - Disables the Ray dashboard (avoids hostname resolution issues on WSL/PACE).
 - Saves learning-curve plots every N training iterations.
 
 Usage:
-  python PPO/training/train_ppo_team.py
-  python PPO/training/train_ppo_team.py --config PPO/configs/config.yaml
-  python PPO/training/train_ppo_team.py --max-timesteps 500000
+  python soccer_rl/algorithms/ppo/training/train_ppo_team.py
+  python soccer_rl/algorithms/ppo/training/train_ppo_team.py --config soccer_rl/algorithms/ppo/configs/config.yaml
+  python soccer_rl/algorithms/ppo/training/train_ppo_team.py --max-timesteps 500000
 
 Run from the repository root. On PACE ICE: set PACE_NUM_GPUS if needed.
 """
@@ -19,15 +19,12 @@ import argparse
 import os
 import sys
 from datetime import datetime
-from typing import Any, Dict
-
-# Ensure repo root is on path so we can import training_utils
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_REPO_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", ".."))
+_REPO_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", "..", "..", ".."))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from training_utils import (
+from soccer_rl.common.training_utils import (
     create_rllib_env,
     load_config,
     get_num_gpus,
@@ -36,75 +33,23 @@ from training_utils import (
     ProgressPrintCallback,
     has_matplotlib,
 )
-from PPO.training.model_config import build_model_config
-from PPO.training.goal_metrics_callbacks import GoalStatsCallbacks
+from soccer_rl.algorithms.ppo.training.model_config import build_model_config
+from soccer_rl.algorithms.ppo.training.goal_metrics_callbacks import GoalStatsCallbacks
+from soccer_rl.algorithms.ppo.env_config import (
+    build_multiagent_config,
+    get_env_type,
+    zero_opponent_policy,
+)
 
 import ray
 from ray import tune
-from soccer_twos import EnvType
 
-# PPO-specific defaults
 NUM_ENVS_PER_WORKER = 3
 DEFAULT_PLOT_FREQ = 10
 DEFAULT_MAX_TIMESTEPS = 2_000_000
 DEFAULT_NUM_WORKERS = 8
 BASE_OUTPUT_DIR = "team_runs"
-DEFAULT_CONFIG_PATH = os.path.join(_SCRIPT_DIR, "..", "configs", "config.yaml")
-
-
-def _zero_opponent_policy(*_):
-    return 0
-
-
-def _get_env_type(name: str):
-    mapping = {
-        "team_vs_policy": EnvType.team_vs_policy,
-        "multiagent_team": EnvType.multiagent_team,
-        "multiagent_player": EnvType.multiagent_player,
-    }
-    return mapping.get(name, EnvType.team_vs_policy)
-
-
-def _policy_id_for_agent(agent_id, mode: str):
-    try:
-        aid = int(agent_id)
-    except Exception:
-        aid = 0
-    if mode == "per_player":
-        return f"player_{aid}"
-    if mode == "team_shared":
-        return "team_0" if aid in (0, 1) else "team_1"
-    return "default"
-
-
-def _build_multiagent_config(env_config: Dict[str, Any], policy_mode: str):
-    temp_env = create_rllib_env(env_config)
-    obs_space = temp_env.observation_space
-    act_space = temp_env.action_space
-    temp_env.close()
-
-    if policy_mode == "per_player":
-        policies = {
-            "player_0": (None, obs_space, act_space, {}),
-            "player_1": (None, obs_space, act_space, {}),
-            "player_2": (None, obs_space, act_space, {}),
-            "player_3": (None, obs_space, act_space, {}),
-        }
-    elif policy_mode == "team_shared":
-        policies = {
-            "team_0": (None, obs_space, act_space, {}),
-            "team_1": (None, obs_space, act_space, {}),
-        }
-    else:
-        policies = {"default": (None, obs_space, act_space, {})}
-
-    return {
-        "policies": policies,
-        "policy_mapping_fn": tune.function(
-            lambda agent_id, *args, **kwargs: _policy_id_for_agent(agent_id, policy_mode)
-        ),
-        "policies_to_train": list(policies.keys()),
-    }
+DEFAULT_CONFIG_PATH = os.path.join(_SCRIPT_DIR, "..", "..", "configs", "config.yaml")
 
 
 def main():
@@ -164,14 +109,16 @@ def main():
 
     base_env_config = {
         "num_envs_per_worker": num_envs_per_worker,
-        "variation": _get_env_type(variation_name),
+        "variation": get_env_type(variation_name),
         "multiagent": is_multiagent,
         "single_player": bool(env_cfg.get("single_player", True)),
         "flatten_branched": bool(env_cfg.get("flatten_branched", True)),
-        "opponent_policy": _zero_opponent_policy,
+        "opponent_policy": zero_opponent_policy,
     }
     if use_reward_wrapper:
         base_env_config["reward"] = reward_cfg
+    elif env_cfg.get("goal_reward_threshold") is not None:
+        base_env_config["goal_reward_threshold"] = float(env_cfg["goal_reward_threshold"])
 
     ppo_config = {
         "num_gpus": num_gpus,
@@ -190,9 +137,8 @@ def main():
     ppo_config["env_config"] = base_env_config
 
     if is_multiagent:
-        ppo_config["multiagent"] = _build_multiagent_config(base_env_config, policy_mode)
+        ppo_config["multiagent"] = build_multiagent_config(base_env_config, policy_mode)
 
-    # RLlib-side callbacks for extra metrics (goals_for / goals_against).
     ppo_config["callbacks"] = GoalStatsCallbacks
 
     print(

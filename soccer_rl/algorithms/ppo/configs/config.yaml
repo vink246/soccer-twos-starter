@@ -1,6 +1,6 @@
 # PPO training config for Soccer-Twos
 # Copy this file to create per-run configs (e.g. config_fast.yaml, config_long.yaml).
-# Path: pass with --config PPO/configs/your_config.yaml
+# Path: pass with --config soccer_rl/algorithms/ppo/configs/your_config.yaml
 
 # Run / output
 run:

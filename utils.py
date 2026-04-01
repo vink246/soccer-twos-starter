@@ -9,7 +9,7 @@ from training_utils import create_rllib_env
 
 
 class RLLibWrapper(gym.core.Wrapper, MultiAgentEnv):
-    """RLlib wrapper so env can inherit from MultiAgentEnv. Prefer training_utils.create_rllib_env for training."""
+    """RLlib wrapper so env can inherit from MultiAgentEnv. Prefer soccer_rl.common.training_utils.create_rllib_env for training."""
     pass
 
 

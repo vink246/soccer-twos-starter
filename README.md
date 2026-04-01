@@ -50,6 +50,12 @@ Training plots are required for every agent that is discussed or submitted. Addi
 
 ## Testing/Evaluating
 
+**Use the `soccertwos` conda environment** for any command that imports `soccer_twos`, Ray, or the Unity binaries (watch, training, PPO agents):
+
+```bash
+conda activate soccertwos
+```
+
 Use the environment's rollout tool to test the example agent module:
 
 `python -m soccer_twos.watch -m example_player_agent`
@@ -63,6 +69,50 @@ To examine the baseline agent, you must extract the `ceia_baseline_agent` folder
 
 , to examine the random agent vs. the baseline agent.
 
+### PPO submission agents (`ppo_team_agent`, `ppo_player_agent`)
+
+Two ready-made **`AgentInterface`** packages load a **Ray RLlib PPO** checkpoint for `soccer_twos.watch`. Run from the **repo root** so `soccer_rl` imports work, and **activate the env first**:
+
+```bash
+conda activate soccertwos
+```
+
+**Train** (writes checkpoints under your `run.output_dir`, e.g. `runs/`):
+
+```bash
+python soccer_rl/algorithms/ppo/training/train_ppo_team.py --config soccer_rl/algorithms/ppo/configs/config.yaml
+```
+
+- **`ppo_team_agent`** — use a checkpoint trained with **`multiagent.policy_mode: team_shared`** (policies `team_0` / `team_1`). Set `env.multiagent: true` and the matching `env.variation` in the YAML (same file for train and agent).
+- **`ppo_player_agent`** — use a checkpoint trained with **`multiagent.policy_mode: per_player`** (policies `player_0` … `player_3`).
+
+**Point the agent at a checkpoint:** edit `ppo_team_agent/agent_config.yaml` or `ppo_player_agent/agent_config.yaml` (`checkpoint_path`, optional `training_config_path`), or set `SOCCER_PPO_CHECKPOINT` and `SOCCER_PPO_TRAINING_CONFIG`. For the orange team in `-m1`/`-m2` mode, set `team_side: orange` in the yaml or `SOCCER_PPO_TEAM_SIDE=orange`.
+
+**Watch:**
+
+```bash
+conda activate soccertwos
+python -m soccer_twos.watch -m1 ppo_team_agent -m2 example_player_agent
+# or
+python -m soccer_twos.watch -m1 ppo_player_agent -m2 example_player_agent
+```
+
+See each agent folder’s **README.md** for packaging notes. Training must use the **same** YAML (obs/reward/model/multiagent) as the agent’s `training_config_path` so `restore()` matches.
+
+
+## Repository layout (training code)
+
+Assignment **submission agents** stay as top-level Python packages (e.g. `example_player_agent/`, `ppo_team_agent/`, `ppo_player_agent/`, your own `*_agent/` folders) so `python -m soccer_twos.watch -m your_agent` works unchanged.
+
+Shared RL code lives under **`soccer_rl/`**:
+
+| Path | Role |
+|------|------|
+| `soccer_rl/common/` | Env factory, YAML loading, RLlib callbacks, GPU helpers (`training_utils.py`); reward shaping (`rewards/` — `RewardContext`, terms, `RewardShapingWrapper`); playback helpers (`playback/` — e.g. headless display for video). |
+| `soccer_rl/algorithms/ppo/` | PPO configs, training script, eval (render, smoke tests). |
+| `soccer_rl/algorithms/sac/`, `dqn/` | Placeholders for future Ray RLlib scripts; reuse `soccer_rl.common`. |
+
+The repo root **`training_utils.py`** re-exports `soccer_rl.common.training_utils` for older scripts that import `training_utils` directly.
 
 ## PPO
 
@@ -78,19 +128,33 @@ This section describes the PPO (Proximal Policy Optimization) training setup: la
 ### Folder structure
 
 ```
-PPO/
-├── configs/
-│   └── config.yaml      # Default config (run, resources, rllib)
-└── training/
-    └── train_ppo_team.py   # Training script (run from repo root)
+soccer_rl/
+├── common/
+│   ├── training_utils.py   # create_rllib_env, load_config, callbacks, GPU helpers
+│   ├── rewards/            # RewardContext, dense terms, RewardShapingWrapper
+│   └── playback/           # headless display helpers for eval video
+└── algorithms/
+    ├── ppo/
+    │   ├── configs/
+    │   │   └── config.yaml      # Default PPO YAML
+    │   ├── training/
+    │   │   ├── train_ppo_team.py
+    │   │   ├── model_config.py
+    │   │   └── goal_metrics_callbacks.py
+    │   ├── eval/
+    │   │   ├── render_match.py
+    │   │   └── smoke_test_rewards.py
+    │   └── env_config.py        # multiagent / env-type helpers (shared train + eval)
+    ├── sac/                     # placeholder
+    └── dqn/                     # placeholder
 ```
 
-- **`PPO/configs/`** — YAML configs. Use `config.yaml` as the default; copy it to create per-run configs (e.g. `config_fast.yaml`, `config_long.yaml`) and pass with `--config PPO/configs/config_fast.yaml`.
-- **`PPO/training/train_ppo_team.py`** — Entry point. Expects to be run from the **repository root**. Reads the chosen config and starts Ray + RLlib PPO. Imports shared helpers from `training_utils` (see below).
+- **`soccer_rl/algorithms/ppo/configs/`** — YAML configs. Use `config.yaml` as the default; copy it for per-run configs and pass with `--config soccer_rl/algorithms/ppo/configs/config_fast.yaml`.
+- **`soccer_rl/algorithms/ppo/training/train_ppo_team.py`** — Entry point. Run from the **repository root**. Reads the chosen config and starts Ray + RLlib PPO. Uses `soccer_rl.common.training_utils` (and the root `training_utils` shim for backward compatibility).
 
-**Shared training utilities (`training_utils.py` in repo root)** — Reusable across PPO, DQN, and other RLlib algorithms: `create_rllib_env` (Soccer-Twos with unique worker_id per Ray worker), `load_config`, `get_num_gpus`, `print_gpu_status`, `PlotCallback`, `ProgressPrintCallback`, `has_matplotlib`. Example for a future DQN script: import these and register the env with `tune.run("DQN", ...)` using the same callbacks.
+**Shared training utilities** — `soccer_rl.common.training_utils` (and root `training_utils.py`): reusable across PPO, DQN, SAC — `create_rllib_env`, `load_config`, `get_num_gpus`, `print_gpu_status`, `PlotCallback`, `ProgressPrintCallback`, `has_matplotlib`.
 
-### Config file (`PPO/configs/config.yaml`)
+### Config file (`soccer_rl/algorithms/ppo/configs/config.yaml`)
 
 The YAML has three top-level keys:
 
@@ -104,7 +168,7 @@ Anything not set in the config falls back to script defaults. Env mode and rewar
 
 ### Reward framework (new)
 
-`PPO/rewards/` now provides an env-wrapper reward composer that blends sparse env reward with dense shaping terms:
+`soccer_rl/common/rewards/` provides an env-wrapper reward composer that blends sparse env reward with dense shaping terms:
 
 - `ball_progress` (potential-based ball progress toward opponent goal)
 - `ball_goal_distance` (negative distance to opponent goal)
@@ -123,7 +187,7 @@ This supports both single-agent and multiagent modes.
 Quickly inspect per-term reward outputs with a short random rollout:
 
 ```bash
-python PPO/eval/smoke_test_rewards.py --config PPO/configs/config.yaml --steps 200 --print-every 10
+python soccer_rl/algorithms/ppo/eval/smoke_test_rewards.py --config soccer_rl/algorithms/ppo/configs/config.yaml --steps 200 --print-every 10
 ```
 
 ### Multiagent policy control modes (new)
@@ -139,22 +203,29 @@ You can train with one policy per team or one policy per player using:
 
 ### Model architecture control (new)
 
-`PPO/training/model_config.py` exposes model presets and pass-through overrides from YAML:
+`soccer_rl/algorithms/ppo/training/model_config.py` exposes model presets and pass-through overrides from YAML:
 
 - Presets: `small`, `baseline`, `large`, `residual_mlp`
 - Override with any RLlib model keys under `rllib.model` (e.g. `fcnet_hiddens`, `fcnet_activation`, `vf_share_layers`, LSTM/custom model options)
 
 ### Playback / rendering (new)
 
+Use the same conda env as training (`conda activate soccertwos` or your env with `soccer_twos` installed).
+
 Render checkpoint-vs-checkpoint or checkpoint-vs-random matches:
 
 ```bash
-python PPO/eval/render_match.py \
+python soccer_rl/algorithms/ppo/eval/render_match.py \
+  --config soccer_rl/algorithms/ppo/configs/config.yaml \
   --team-a-checkpoint /path/to/checkpoint-100 \
-  --team-b-checkpoint /path/to/checkpoint-100 \
+  --team-b-strategy random \
   --policy-mode team_shared \
-  --output-video PPO/runs/match.mp4
+  --output-video runs/match.mp4
 ```
+
+By default the script uses **`watch=True`** so Unity runs the **watch-soccer-twos** build, which includes a camera. The usual **training** binary does not expose visual observations, so `render(rgb_array)` would stay empty without that. Pass **`--no-watch-env`** only if you want the training binary and accept no video frames.
+
+The script **loads checkpoints and headless training Unity first**, then opens the watch window, so you are not stuck staring at a frozen **PAUSED** screen while RLlib restores. If the watch window still never advances, **click inside the Unity window** (focus) and try **Space** or **P** — some player builds keep the sim idle until the window has focus.
 
 Stop condition defaults to first goal or 120 seconds.
 
@@ -165,19 +236,19 @@ Two submit helpers are included:
 - `scripts/submit_ppo_hopper.sh` (choose `h100` or `h200`)
 - `scripts/submit_ppo_a100.sh`
 
-Both request 8-hour jobs and run `PPO/training/train_ppo_team.py`, writing checkpoints and results under the configured run output directory.
+Both request 8-hour jobs and run `soccer_rl/algorithms/ppo/training/train_ppo_team.py`, writing checkpoints and results under the configured run output directory.
 
 Examples:
 
 ```bash
 # HOPPER H100
-bash scripts/submit_ppo_hopper.sh h100 PPO/configs/config.yaml my_exp_h100
+bash scripts/submit_ppo_hopper.sh h100 soccer_rl/algorithms/ppo/configs/config.yaml my_exp_h100
 
 # HOPPER H200
-bash scripts/submit_ppo_hopper.sh h200 PPO/configs/config.yaml my_exp_h200
+bash scripts/submit_ppo_hopper.sh h200 soccer_rl/algorithms/ppo/configs/config.yaml my_exp_h200
 
 # A100
-bash scripts/submit_ppo_a100.sh PPO/configs/config.yaml my_exp_a100
+bash scripts/submit_ppo_a100.sh soccer_rl/algorithms/ppo/configs/config.yaml my_exp_a100
 ```
 
 ### How to run
@@ -185,21 +256,21 @@ bash scripts/submit_ppo_a100.sh PPO/configs/config.yaml my_exp_a100
 From the **repository root**:
 
 ```bash
-# Default config (PPO/configs/config.yaml)
-python PPO/training/train_ppo_team.py
+# Default config
+python soccer_rl/algorithms/ppo/training/train_ppo_team.py
 
 # Custom config for this run
-python PPO/training/train_ppo_team.py --config PPO/configs/config_fast.yaml
+python soccer_rl/algorithms/ppo/training/train_ppo_team.py --config soccer_rl/algorithms/ppo/configs/config_fast.yaml
 
 # Override options from the command line (override config file)
-python PPO/training/train_ppo_team.py --max-timesteps 500000 --output-dir my_runs --num-gpus 0
+python soccer_rl/algorithms/ppo/training/train_ppo_team.py --max-timesteps 500000 --output-dir my_runs --num-gpus 0
 ```
 
 **CLI flags** (all override the config file):
 
 | Flag | Overrides | Example |
 |------|-----------|--------|
-| `--config` | Which YAML to load | `--config PPO/configs/config.yaml` |
+| `--config` | Which YAML to load | `--config soccer_rl/algorithms/ppo/configs/config.yaml` |
 | `--output-dir` | `run.output_dir` | `--output-dir my_runs` |
 | `--max-timesteps` | `run.max_timesteps` | `--max-timesteps 1000000` |
 | `--plot-freq` | `run.plot_freq` | `--plot-freq 5` |
@@ -223,12 +294,12 @@ python PPO/training/train_ppo_team.py --max-timesteps 500000 --output-dir my_run
 
 This section describes additions made by the team for training and running on shared infrastructure (e.g. PACE ICE).
 
-### PPO training (`PPO/training/train_ppo_team.py`)
+### PPO training (`soccer_rl/algorithms/ppo/training/train_ppo_team.py`)
 
 The main PPO training entry point is described in the **PPO** section above. In short:
 
-- **Config**: Options are read from `PPO/configs/config.yaml` (or a file you pass with `--config`). You can create one config per run (e.g. `config_fast.yaml`, `config_long.yaml`).
-- **Run from repo root**: `python PPO/training/train_ppo_team.py` or `python PPO/training/train_ppo_team.py --config PPO/configs/your_config.yaml --max-timesteps 500000`.
+- **Config**: Options are read from `soccer_rl/algorithms/ppo/configs/config.yaml` (or a file you pass with `--config`). You can create one config per run (e.g. `config_fast.yaml`, `config_long.yaml`).
+- **Run from repo root**: `python soccer_rl/algorithms/ppo/training/train_ppo_team.py` or `python soccer_rl/algorithms/ppo/training/train_ppo_team.py --config soccer_rl/algorithms/ppo/configs/your_config.yaml --max-timesteps 500000`.
 - **Outputs**: Each run gets a timestamped folder under `team_runs/` (or the `output_dir` in your config). Checkpoints and plots are written there; the script prints a progress table and GPU status.
 - **Dashboard**: Uses `ray.init(include_dashboard=False)` to avoid hostname/socket issues on WSL and PACE.
 - **GPU**: Use `--num-gpus 0` for CPU-only if you see CUDA "no kernel image" errors. See the PPO section for more detail.
