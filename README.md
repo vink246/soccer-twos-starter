@@ -164,6 +164,7 @@ Example configs in [`configs/`](configs/):
 | `train_single_ppo_vs_checkpoint_example.yaml` | Single agent vs a frozen policy checkpoint |
 | `train_team_ppo.yaml` | One policy vs opponent team, `multiagent_team` |
 | `train_team_ppo_vs_checkpoint_example.yaml` | Team mode vs frozen opponent checkpoint |
+| `train_team_ppo_dense_vs_ceia_cpu.yaml` | Team + dense rewards vs CEIA baseline; CPU/cluster-oriented |
 | `train_ceia_baseline_ppo_selfplay.yaml` | Team-mode reference aligned with CEIA baseline notes |
 | `train_single_sac.yaml` | Discrete SAC-style training, single agent |
 
@@ -171,7 +172,7 @@ YAML is merged with algorithm defaults from `algorithms/<type>/defaults.yaml`. K
 
 - **`run`**: `name`, `local_dir` (default `runs`), `seed`, `stop.total_timesteps`, checkpoint frequency.
 - **`device`**: `auto`, `cpu`, or `cuda` / `cuda:0` (networks on GPU; Unity stepping stays on CPU).
-- **`training_mode`**: `single_agent: true|false`; `teammate_policy` / `opponent_policy` (single agent); `opponent_team_policy` (team mode).
+- **`training_mode`**: `single_agent: true|false`; `teammate_policy` / `opponent_policy` (single agent); `opponent_team_policy` (team mode: `random`, `still`, `ceia_baseline`, or a checkpoint dict).
 - **`env`**: `flatten_branched`, `base_port`, `worker_id`, etc.
 - **`algorithm`**: `type: ppo | dqn | sac` plus method-specific hyperparameters.
 - **`model`**: `architecture` and `hidden_sizes` (see [`models/registry.py`](models/registry.py)).

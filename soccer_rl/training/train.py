@@ -25,6 +25,11 @@ def main():
     config = load_experiment_config(config_path)
 
     run_cfg = config.get("run") or {}
+    cpu_threads = run_cfg.get("cpu_torch_threads")
+    if cpu_threads is not None:
+        import torch
+
+        torch.set_num_threads(max(1, int(cpu_threads)))
     run_name = str(run_cfg.get("name", "run"))
     root = str(run_cfg.get("local_dir", "runs"))
     paths = prepare_run_dir(root, run_name)

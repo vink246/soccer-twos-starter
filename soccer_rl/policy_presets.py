@@ -1,8 +1,61 @@
 """Named policies for teammates / opponents (string presets in YAML)."""
 
-from typing import Callable
+from typing import Any, Callable, Dict, Optional
 
 import gym
+import numpy as np
+
+
+def _build_ceia_baseline_team_policy(action_space: gym.spaces.Discrete) -> Callable[[Any], int]:
+    """
+    Opponent = CEIA Ray RLlib policy (per-player), composed into joint Discrete(729).
+
+    Requires ``agents/ceia_baseline_agent`` with checkpoint + ``params.pkl`` as in the
+    baseline bundle (same as ``RayAgent``).
+    """
+    if action_space.n != 729:
+        raise ValueError(
+            "ceia_baseline opponent expects joint team Discrete(729); got n=%d" % action_space.n
+        )
+
+    import gym as gym_lib
+
+    from agents.ceia_baseline_agent.agent_ray import RayAgent
+
+    class _Shim(gym_lib.Env):
+        """RayAgent requires a gym.Env; policy inference ignores it."""
+
+        metadata = {}
+
+        def __init__(self):
+            super().__init__()
+            self.observation_space = gym_lib.spaces.Box(
+                -np.inf, np.inf, shape=(336,), dtype=np.float32
+            )
+            self.action_space = gym_lib.spaces.Discrete(27)
+
+        def reset(self):
+            raise NotImplementedError
+
+        def step(self, action):
+            raise NotImplementedError
+
+    holder: Dict[str, Optional[RayAgent]] = {"agent": None}
+
+    def policy(obs_team: Any) -> int:
+        if holder["agent"] is None:
+            holder["agent"] = RayAgent(_Shim())
+        agent = holder["agent"]
+        o = np.asarray(obs_team, dtype=np.float32).reshape(-1)
+        if o.size != 672:
+            raise ValueError(
+                "CEIA team opponent expected 672-dim observation; got %d" % o.size
+            )
+        a0, *_ = agent.policy.compute_single_action(o[:336])
+        a1, *_ = agent.policy.compute_single_action(o[336:])
+        return int(a0) * 27 + int(a1)
+
+    return policy
 
 
 def build_policy(name: str, action_space: gym.Space) -> Callable:
@@ -27,7 +80,12 @@ def build_policy(name: str, action_space: gym.Space) -> Callable:
     if key in ("uniform_random",):
         return lambda *_args, **_kwargs: int(action_space.sample())
 
-    raise ValueError(f"Unknown policy preset: {name!r} (known: still, random)")
+    if key in ("ceia_baseline", "ceia"):
+        return _build_ceia_baseline_team_policy(action_space)
+
+    raise ValueError(
+        f"Unknown policy preset: {name!r} (known: still, random, ceia_baseline)"
+    )
 
 
 def build_team_opponent_policy(name: str, action_space: gym.spaces.Discrete) -> Callable:
