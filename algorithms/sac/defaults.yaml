@@ -1,0 +1,19 @@
+algorithm:
+  type: sac
+  lr_q: 0.0003
+  lr_pi: 0.0003
+  gamma: 0.99
+  alpha: 0.2
+  batch_size: 256
+  buffer_size: 100000
+  learning_starts: 5000
+  train_freq: 1
+  tau: 0.005
+
+model:
+  actor_architecture: mlp_categorical_actor
+  critic_architecture: mlp_double_q
+  hidden_sizes: [256, 256]
+
+rollout:
+  n_steps: 1

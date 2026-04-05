@@ -1,0 +1,32 @@
+run:
+  name: ppo_single_still
+  seed: 0
+  local_dir: runs
+  checkpoint_every_iterations: 10
+  stop:
+    total_timesteps: 50000
+
+device: auto
+
+training_mode:
+  single_agent: true
+  teammate_policy: still
+  opponent_policy: still
+
+env:
+  flatten_branched: true
+  base_port: 50039
+  worker_id: 0
+
+metrics:
+  goal_reward_threshold: 0.25
+
+algorithm:
+  type: ppo
+
+rollout:
+  n_steps: 1024
+
+model:
+  architecture: mlp_actor_critic
+  hidden_sizes: [256, 256]

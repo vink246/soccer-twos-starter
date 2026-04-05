@@ -1,7 +1,12 @@
 envs/
 ray_results/
-ceia_baseline_agent/
+runs/
+# Baseline bundle extracted at repo root (not agents/ceia_baseline_agent)
+/ceia_baseline_agent/
 data/
+
+# Editor / local tooling
+.cursor/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

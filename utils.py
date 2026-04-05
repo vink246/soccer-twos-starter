@@ -2,7 +2,8 @@ from random import uniform as randfloat
 
 import gym
 from ray.rllib import MultiAgentEnv
-import soccer_twos
+
+from soccer_rl.env_factory import make_env_from_flat_config, normalize_worker_env_config
 
 
 class RLLibWrapper(gym.core.Wrapper, MultiAgentEnv):
@@ -20,17 +21,12 @@ def create_rllib_env(env_config: dict = {}):
         env_config: configuration for the environment.
             You may specify the following keys:
             - variation: one of soccer_twos.EnvType. Defaults to EnvType.multiagent_player.
-            - opponent_policy: a Callable for your agent to train against. Defaults to a random policy.
+            - opponent_policy: a Callable or preset string (still, random) for your agent to train against.
     """
-    if hasattr(env_config, "worker_index"):
-        env_config["worker_id"] = (
-            env_config.worker_index * env_config.get("num_envs_per_worker", 1)
-            + env_config.vector_index
-        )
-    env = soccer_twos.make(**env_config)
+    env = make_env_from_flat_config(env_config)
     # env = TransitionRecorderWrapper(env)
-    if "multiagent" in env_config and not env_config["multiagent"]:
-        # is multiagent by default, is only disabled if explicitly set to False
+    cfg = normalize_worker_env_config(env_config)
+    if "multiagent" in cfg and not cfg["multiagent"]:
         return env
     return RLLibWrapper(env)
 

@@ -1,0 +1,3 @@
+# Team policy: joint obs (672) / joint action (729) in training and in team-vs-team matches.
+variation: multiagent_team
+flatten_branched: true

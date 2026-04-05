@@ -1,0 +1,44 @@
+# Example: train one field player (336-dim obs, Discrete(27)) against a frozen PyTorch policy.
+# 1) Train a baseline first, e.g. configs/train_single_ppo_still.yaml
+# 2) Set opponent_policy.path below to that run's checkpoint_final.pth (or any compatible .pth)
+# 3) python scripts/train.py --config configs/train_single_ppo_vs_checkpoint_example.yaml
+
+run:
+  name: ppo_single_vs_ckpt
+  seed: 0
+  local_dir: runs
+  checkpoint_every_iterations: 10
+  stop:
+    total_timesteps: 50000
+
+device: auto
+
+training_mode:
+  single_agent: true
+  teammate_policy: still
+  opponent_policy:
+    kind: checkpoint
+    path: runs/ppo_single_still/checkpoints/checkpoint_final.pth
+    obs_dim: 336
+    deterministic: true
+    model:
+      architecture: mlp_actor_critic
+      hidden_sizes: [256, 256]
+
+env:
+  flatten_branched: true
+  base_port: 50039
+  worker_id: 0
+
+metrics:
+  goal_reward_threshold: 0.25
+
+algorithm:
+  type: ppo
+
+rollout:
+  n_steps: 1024
+
+model:
+  architecture: mlp_actor_critic
+  hidden_sizes: [256, 256]

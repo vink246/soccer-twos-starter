@@ -4,8 +4,8 @@
 # Author: Mili Das
 # Date: 2026
 
-# Replace gburdell3 with your GT username.
-# Replace the training script name with the actual script you want to run.
+# Replace the mail-user and paths with your cluster username and repo location.
+# Submit from the repository root (or set SLURM_SUBMIT_DIR accordingly).
 
 #SBATCH --job-name=soccerstwos
 #SBATCH -N4 --ntasks-per-node=8
@@ -13,11 +13,13 @@
 #SBATCH -t12:00:00
 #SBATCH --output=soccerstwos-%j.out
 #SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --mail-user=gburbell3@gatech.edu
+#SBATCH --mail-user=YOUR_USERNAME@gatech.edu
 
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate soccerstwos
+conda activate soccertwos
 
-# Run the training script
-python example_ray_ppo_sp_still.py
+cd "${SLURM_SUBMIT_DIR:-.}"
+
+# PyTorch training (override --config as needed)
+python scripts/train.py --config configs/train_single_ppo_still.yaml
 

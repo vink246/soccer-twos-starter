@@ -1,0 +1,43 @@
+# Example: train one team policy (672-dim obs, Discrete(729)) against a frozen opponent checkpoint.
+# 1) Train a baseline first, e.g. configs/train_team_ppo.yaml (default run name: ppo_team_vs_random)
+# 2) Set opponent_team_policy.path below to that run's checkpoint_final.pth (or any compatible .pth)
+# 3) python scripts/train.py --config configs/train_team_ppo_vs_checkpoint_example.yaml
+
+run:
+  name: ppo_team_vs_ckpt
+  seed: 0
+  local_dir: runs
+  checkpoint_every_iterations: 10
+  stop:
+    total_timesteps: 50000
+
+device: auto
+
+training_mode:
+  single_agent: false
+  opponent_team_policy:
+    kind: checkpoint
+    path: runs/ppo_team_vs_random/checkpoints/checkpoint_final.pth
+    obs_dim: 672
+    deterministic: true
+    model:
+      architecture: mlp_actor_critic
+      hidden_sizes: [256, 256]
+
+env:
+  flatten_branched: true
+  base_port: 50041
+  worker_id: 0
+
+metrics:
+  goal_reward_threshold: 0.25
+
+algorithm:
+  type: ppo
+
+rollout:
+  n_steps: 1024
+
+model:
+  architecture: mlp_actor_critic
+  hidden_sizes: [256, 256]

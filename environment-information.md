@@ -60,6 +60,43 @@ Opponents use `opponent_policy`; teammate can use `teammate_policy` (default sta
 
 ---
 
+## Dense reward shaping (PyTorch training)
+
+This repo can add **weighted dense terms** on top of Unity’s sparse team reward when you use `scripts/train.py` (or any code path that builds the env via `soccer_rl.env_factory.make_env` / `make_env_from_flat_config`).
+
+**YAML (top level, next to `env:`):**
+
+```yaml
+dense_reward:
+  enabled: true
+  sparse_weight: 1.0          # multiply Unity reward before adding dense terms
+  clip: 0.5                   # optional: abs clip on total dense per step
+  terms:
+    ball_vel_attack_component:
+      weight: 0.02
+      axis: 0                  # 0 = x, 1 = y in world (x,y) from info
+      attack_sign: 1.0         # flip sign if your pitch direction is reversed
+    screen_own_goal:
+      weight: 0.05
+      own_goal_xy: [-1.0, 0.0]
+      opponent_goal_xy: [1.0, 0.0]
+    hide_ball_from_opponent_los:
+      weight: 0.03
+      opponent_pos_obs: [120, 121]   # indices into the 336-dim vector (you must calibrate)
+      opponent_yaw_obs: 122
+      yaw_in_degrees: true
+      fov_degrees: 120
+      max_range: 50.0
+```
+
+**Requirements:** Most geometric terms use **`player_info` / `ball_info`** in `info`, which appear only when the binary sends **345** floats per agent (wrapper strips the last 9 into `info` and keeps **336** for the policy). If your build only sends 336, those terms are **0** until you enable the extra channels in Unity or add new terms that read from fixed observation indices.
+
+**Implementation:** `soccer_rl/dense_rewards.py` registers term names; `soccer_rl/dense_reward_wrapper.py` wraps the Gym env. See **`configs/train_single_ppo_dense_example.yaml`** for a commented template.
+
+**List of built-in term names:** `ball_attack_axis_delta`, `ball_vel_attack_component`, `ball_own_goal_threat_gaussian`, `distance_to_ball_closer_delta`, `screen_own_goal`, `ball_opponent_goal_potential_delta`, `ball_distance_to_own_goal`, `ball_distance_to_opponent_goal`, `ball_own_times_opp_goal_distance`, `hide_ball_from_opponent_los`.
+
+---
+
 ## Networking / ports (ML-Agents)
 
 - GRPC uses **`port = base_port + worker_id`** (defaults in `make`: `base_port=50039`, `worker_id=0`).
@@ -81,3 +118,4 @@ From wrapper logic (binary-dependent):
 | Date | Notes |
 |------|--------|
 | 2026-04-01 | Initial write-up from `inspect_env_spaces.py` output and `soccer_twos.wrappers` (single-player, multiagent_player, multiagent_team; rewards; ports; info schema). |
+| 2026-04-02 | Documented optional `dense_reward` YAML block and `soccer_rl` dense shaping wrapper for PyTorch training. |
