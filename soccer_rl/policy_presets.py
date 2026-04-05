@@ -6,6 +6,30 @@ import gym
 import numpy as np
 
 
+def _rllib_action_to_flat27(action: Any) -> int:
+    """
+    RLlib ``compute_single_action`` may return a numpy scalar, shape-(1,) array, or a
+    MultiDiscrete branch vector (Soccer-Twos typically [3,3,3] → flat 0..26).
+    """
+    arr = np.asarray(action, dtype=np.int64).ravel()
+    if arr.size == 0:
+        raise ValueError("empty action from RLlib policy")
+    if arr.size == 1:
+        return int(arr.flat[0])
+    branch_sizes = (3, 3, 3)
+    if arr.size != len(branch_sizes):
+        raise ValueError(
+            "CEIA action has unexpected size %d (expected 1 or %d): %r"
+            % (arr.size, len(branch_sizes), action)
+        )
+    idx = 0
+    mul = 1
+    for i in range(len(branch_sizes) - 1, -1, -1):
+        idx += int(arr[i]) * mul
+        mul *= branch_sizes[i]
+    return idx
+
+
 def _build_ceia_baseline_team_policy(action_space: gym.spaces.Discrete) -> Callable[[Any], int]:
     """
     Opponent = CEIA Ray RLlib policy (per-player), composed into joint Discrete(729).
@@ -53,7 +77,7 @@ def _build_ceia_baseline_team_policy(action_space: gym.spaces.Discrete) -> Calla
             )
         a0, *_ = agent.policy.compute_single_action(o[:336])
         a1, *_ = agent.policy.compute_single_action(o[336:])
-        return int(a0) * 27 + int(a1)
+        return _rllib_action_to_flat27(a0) * 27 + _rllib_action_to_flat27(a1)
 
     return policy
 
