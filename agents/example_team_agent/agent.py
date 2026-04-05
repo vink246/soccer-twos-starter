@@ -14,6 +14,8 @@ class TeamAgent(AgentInterface):
     """
 
     def __init__(self, env):
+        super().__init__()
+        self.name = "Example team (DQN)"
         # use flattened, Discrete actions instead of default MultiDiscrete
         self.flattener = ActionFlattener(env.action_space.nvec)
         # this agent's model works with team_vs_policy variation of the env
