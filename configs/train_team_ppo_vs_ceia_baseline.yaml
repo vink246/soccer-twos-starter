@@ -1,0 +1,31 @@
+run:
+  name: ppo_team_vs_ceia_baseline
+  seed: 0
+  local_dir: runs
+  checkpoint_every_iterations: 25
+  stop:
+    total_timesteps: 2000000
+
+device: auto
+
+training_mode:
+  single_agent: false
+  opponent_team_policy: ceia_baseline
+
+env:
+  flatten_branched: true
+  base_port: 50041
+  worker_id: 0
+
+metrics:
+  goal_reward_threshold: 0.25
+
+algorithm:
+  type: ppo
+
+rollout:
+  n_steps: 2048
+
+model:
+  architecture: mlp_actor_critic
+  hidden_sizes: [256, 256]

@@ -82,6 +82,54 @@ def _build_ceia_baseline_team_policy(action_space: gym.spaces.Discrete) -> Calla
     return policy
 
 
+def _build_ceia_baseline_player_policy(action_space: gym.spaces.Discrete) -> Callable[[Any], int]:
+    """
+    Opponent = CEIA Ray RLlib policy for single-player/team_vs_policy rollouts.
+
+    Expects per-player 336-dim observations, returns flat Discrete(27) action indices.
+    """
+    if action_space.n != 27:
+        raise ValueError(
+            "ceia_baseline player policy expects Discrete(27); got n=%d" % action_space.n
+        )
+
+    import gym as gym_lib
+
+    from agents.ceia_baseline_agent.agent_ray import RayAgent
+
+    class _Shim(gym_lib.Env):
+        metadata = {}
+
+        def __init__(self):
+            super().__init__()
+            self.observation_space = gym_lib.spaces.Box(
+                -np.inf, np.inf, shape=(336,), dtype=np.float32
+            )
+            self.action_space = gym_lib.spaces.Discrete(27)
+
+        def reset(self):
+            raise NotImplementedError
+
+        def step(self, action):
+            raise NotImplementedError
+
+    holder: Dict[str, Optional[RayAgent]] = {"agent": None}
+
+    def policy(obs_player: Any) -> int:
+        if holder["agent"] is None:
+            holder["agent"] = RayAgent(_Shim())
+        agent = holder["agent"]
+        o = np.asarray(obs_player, dtype=np.float32).reshape(-1)
+        if o.size != 336:
+            raise ValueError(
+                "CEIA player opponent expected 336-dim observation; got %d" % o.size
+            )
+        a, *_ = agent.policy.compute_single_action(o)
+        return _rllib_action_to_flat27(a)
+
+    return policy
+
+
 def build_policy(name: str, action_space: gym.Space) -> Callable:
     """
     Return a callable suitable for soccer_twos opponent_policy / teammate_policy
@@ -105,7 +153,13 @@ def build_policy(name: str, action_space: gym.Space) -> Callable:
         return lambda *_args, **_kwargs: int(action_space.sample())
 
     if key in ("ceia_baseline", "ceia"):
-        return _build_ceia_baseline_team_policy(action_space)
+        if n == 729:
+            return _build_ceia_baseline_team_policy(action_space)
+        if n == 27:
+            return _build_ceia_baseline_player_policy(action_space)
+        raise ValueError(
+            "ceia_baseline preset requires Discrete(27) or Discrete(729), got n=%d" % n
+        )
 
     raise ValueError(
         f"Unknown policy preset: {name!r} (known: still, random, ceia_baseline)"

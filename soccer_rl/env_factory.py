@@ -52,6 +52,10 @@ def apply_training_mode_to_env_section(
     if single:
         out["variation"] = _coerce_variation(out.get("variation", EnvType.team_vs_policy))
         out["single_player"] = True
+        # Convenience: allow these to live under training_mode in YAML.
+        for k in ("opponent_policy", "teammate_policy"):
+            if k in tm and k not in out:
+                out[k] = tm[k]
     else:
         out["variation"] = _coerce_variation(out.get("variation", EnvType.multiagent_team))
         out.pop("single_player", None)

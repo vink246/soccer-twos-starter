@@ -1,0 +1,35 @@
+run:
+  name: ppo_single_vs_ceia_self_teammate
+  seed: 0
+  local_dir: runs
+  checkpoint_every_iterations: 25
+  stop:
+    total_timesteps: 2000000
+
+device: auto
+
+training_mode:
+  single_agent: true
+  # Opponent is CEIA baseline policy (per-player).
+  opponent_policy: ceia_baseline
+  # Teammate uses the current learner policy weights (shared, updated online).
+  self_teammate: true
+  self_teammate_deterministic: true
+
+env:
+  flatten_branched: true
+  base_port: 50039
+  worker_id: 0
+
+metrics:
+  goal_reward_threshold: 0.25
+
+algorithm:
+  type: ppo
+
+rollout:
+  n_steps: 2048
+
+model:
+  architecture: mlp_actor_critic
+  hidden_sizes: [256, 256]

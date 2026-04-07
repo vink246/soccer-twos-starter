@@ -98,6 +98,20 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
     arch = model_cfg.get("architecture", "mlp_actor_critic")
     model = build_model(arch, obs_dim, n_act, model_cfg).to(device)
     opt = optim.Adam(model.parameters(), lr=float(algo.get("lr", 3e-4)))
+    if single and bool(tm.get("self_teammate", False)):
+        # TeamVsPolicyWrapper supports swapping teammate policy at runtime. This closure
+        # reads current model weights, so the teammate mirrors the learner as it trains.
+        deterministic_tm = bool(tm.get("self_teammate_deterministic", True))
+
+        def _self_teammate_policy(obs_tm: Any, *_args: Any, **_kwargs: Any) -> int:
+            o = torch.as_tensor(obs_tm, dtype=torch.float32, device=device).unsqueeze(0)
+            with torch.no_grad():
+                a_tm, _, _ = model.act(o, deterministic=deterministic_tm)
+            return int(a_tm.item())
+
+        setter = getattr(env, "set_teammate_policy", None)
+        if callable(setter):
+            setter(_self_teammate_policy)
 
     gamma = float(algo.get("gamma", 0.99))
     lam = float(algo.get("gae_lambda", 0.95))
