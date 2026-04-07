@@ -66,6 +66,7 @@ class DenseRewardWrapper(gym.Wrapper):
 
         if isinstance(reward, dict):
             new_reward = {}
+            dense_meta = {}
             for k in reward:
                 o_k = obs[k]
                 inf_k = info.get(k, {}) if isinstance(info, dict) else {}
@@ -75,8 +76,17 @@ class DenseRewardWrapper(gym.Wrapper):
                 self._prev[k] = snap
                 if clip_f is not None:
                     dense = float(np.clip(dense, -clip_f, clip_f))
-                new_reward[k] = float(reward[k]) * sparse_w + dense
-            return obs, new_reward, done, info
+                sparse_raw = float(reward[k])
+                shaped = sparse_raw * sparse_w + dense
+                new_reward[k] = shaped
+                dense_meta[k] = {
+                    "sparse_reward": sparse_raw,
+                    "dense_reward": float(dense),
+                    "shaped_reward": float(shaped),
+                }
+            out_info = dict(info) if isinstance(info, dict) else {}
+            out_info["_dense_reward"] = dense_meta
+            return obs, new_reward, done, out_info
 
         o_vec = np.asarray(obs, dtype=np.float64).reshape(-1)
         inf_d = info if isinstance(info, dict) else {}
@@ -85,7 +95,15 @@ class DenseRewardWrapper(gym.Wrapper):
         self._prev[None] = snap
         if clip_f is not None:
             dense = float(np.clip(dense, -clip_f, clip_f))
-        return obs, float(reward) * sparse_w + dense, done, info
+        sparse_raw = float(reward)
+        shaped = sparse_raw * sparse_w + dense
+        out_info = dict(info) if isinstance(info, dict) else {}
+        out_info["_dense_reward"] = {
+            "sparse_reward": sparse_raw,
+            "dense_reward": float(dense),
+            "shaped_reward": float(shaped),
+        }
+        return obs, float(shaped), done, out_info
 
 
 def maybe_wrap_dense_reward(env: gym.Env, full_config: Dict[str, Any]) -> gym.Env:

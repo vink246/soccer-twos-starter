@@ -33,8 +33,10 @@ env:
   time_scale: 30
 
 metrics:
-  # With dense rewards this is only a rough proxy (counts |r|>=thr per step), not true goals.
+  # Dense-based goals_per_episode_mean remains heuristic. Use sparse_* metrics for cleaner signal.
   goal_reward_threshold: 0.25
+  # Approximate sparse goal event threshold (tune if your env sparse scale differs).
+  sparse_goal_reward_threshold: 0.9
 
 algorithm:
   type: ppo
@@ -61,27 +63,24 @@ dense_reward:
   sparse_weight: 1.12
   clip: 0.4
   terms:
-    # --- scoring (moderated vs earlier CEIA config) ---
+    # --- scoring (delta-style terms; avoid constant per-step distance penalties) ---
     ball_vel_attack_component:
       weight: 0.022
       axis: 0
       attack_sign: 1.0
     ball_opponent_goal_potential_delta:
-      weight: 0.065
-      opponent_goal_xy: [1.0, 0.0]
-    ball_distance_to_opponent_goal:
-      weight: -0.028
+      weight: 0.085
       opponent_goal_xy: [1.0, 0.0]
     distance_to_ball_closer_delta:
-      weight: 0.014
+      weight: 0.018
       distance_scale: 1.0
     # --- light defense ---
     screen_own_goal:
-      weight: 0.018
+      weight: 0.015
       axis: 0
       attack_sign: 1.0
       own_goal_xy: [-1.0, 0.0]
     ball_own_goal_threat_gaussian:
-      weight: 0.038
+      weight: 0.03
       sigma: 0.35
       own_goal_xy: [-1.0, 0.0]

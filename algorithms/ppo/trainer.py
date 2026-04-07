@@ -120,6 +120,8 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
             "entropy",
             "episode_return_mean",
             "goals_per_episode_mean",
+            "sparse_episode_return_mean",
+            "sparse_goals_per_episode_mean",
         ],
     )
 
@@ -128,12 +130,18 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
     episode_index = 0
     ep_returns: deque = deque(maxlen=50)
     ep_goals: deque = deque(maxlen=50)
+    ep_sparse_returns: deque = deque(maxlen=50)
+    ep_sparse_goals: deque = deque(maxlen=50)
     cur_rewards: List[float] = []
+    cur_sparse_rewards: List[float] = []
 
     plot_every_episodes = int(run_cfg.get("plot_every_episodes", 0))
     checkpoint_every_episodes = int(run_cfg.get("checkpoint_every_episodes", 0))
 
     goal_thr = float((config.get("metrics") or {}).get("goal_reward_threshold", 0.25))
+    sparse_goal_thr = float(
+        (config.get("metrics") or {}).get("sparse_goal_reward_threshold", goal_thr)
+    )
 
     def finish_episode() -> None:
         if not cur_rewards:
@@ -141,6 +149,12 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
         ep_returns.append(float(np.sum(cur_rewards)))
         ep_goals.append(float(episode_goal_estimate(cur_rewards, threshold=goal_thr)))
         cur_rewards.clear()
+        if cur_sparse_rewards:
+            ep_sparse_returns.append(float(np.sum(cur_sparse_rewards)))
+            ep_sparse_goals.append(
+                float(episode_goal_estimate(cur_sparse_rewards, threshold=sparse_goal_thr))
+            )
+            cur_sparse_rewards.clear()
 
     while timestep < max_steps:
         obs_buf, act_buf, rew_buf, val_buf, logp_buf, done_buf = (
@@ -160,6 +174,10 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
                 a_int = int(action.item())
                 next_obs, reward, done, _info = env.step(a_int)
                 cur_rewards.append(float(reward))
+                sparse_r = float(
+                    (_info.get("_dense_reward") or {}).get("sparse_reward", float(reward))
+                ) if isinstance(_info, dict) else float(reward)
+                cur_sparse_rewards.append(sparse_r)
             else:
                 o_t = torch.as_tensor(obs[0], dtype=torch.float32, device=device).unsqueeze(0)
                 with torch.no_grad():
@@ -173,6 +191,14 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
                 else:
                     next_obs, reward, done, _info = env.step({0: a0, 1: a1})
                 cur_rewards.append(float(reward[0]))
+                sparse_r = float(reward[0])
+                if isinstance(_info, dict):
+                    dense_meta = _info.get("_dense_reward")
+                    if isinstance(dense_meta, dict):
+                        sparse_r = float(
+                            (dense_meta.get(0) or {}).get("sparse_reward", sparse_r)
+                        )
+                cur_sparse_rewards.append(sparse_r)
                 done = bool(done["__all__"])
 
             obs_buf.append(np.asarray(obs if single else obs[0], dtype=np.float32))
@@ -269,6 +295,8 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
             n_updates = 1
         ep_mean = float(np.mean(ep_returns)) if ep_returns else 0.0
         g_mean = float(np.mean(ep_goals)) if ep_goals else 0.0
+        ep_sparse_mean = float(np.mean(ep_sparse_returns)) if ep_sparse_returns else 0.0
+        g_sparse_mean = float(np.mean(ep_sparse_goals)) if ep_sparse_goals else 0.0
         logger.log(
             {
                 "timestep": timestep,
@@ -279,6 +307,8 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
                 "entropy": total_ent / n_updates,
                 "episode_return_mean": ep_mean,
                 "goals_per_episode_mean": g_mean,
+                "sparse_episode_return_mean": ep_sparse_mean,
+                "sparse_goals_per_episode_mean": g_sparse_mean,
             }
         )
 
