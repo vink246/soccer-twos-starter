@@ -11,10 +11,16 @@ Example:
 import argparse
 import importlib
 import inspect
+import sys
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import soccer_twos
 from soccer_twos import AgentInterface, EnvType
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def _load_agent_class(module_path: str):
