@@ -11,13 +11,13 @@ device: auto
 
 training_mode:
   single_agent: true
-  # make() opponent until trainer installs self-play (still is cheap / unused once installed).
-  opponent_policy: still
+  # Start against CEIA through the env's native opponent-policy path.
+  opponent_policy: ceia_baseline
   self_teammate: true
   self_teammate_deterministic: true
   self_play_opponent: true
-  # Until the first snapshot sync, both opponent agents use CEIA; then learner snapshots every N iters.
-  self_play_opponent_initial: ceia_baseline
+  # Keep env opponent (CEIA) until first sync; then install snapshot self-play opponent.
+  self_play_use_env_until_first_update: true
   self_play_update_every_iterations: 200
   self_play_opponent_deterministic: true
 

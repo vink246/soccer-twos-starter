@@ -122,6 +122,9 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
             raise ValueError("training_mode.self_play_update_every_iterations must be >= 1")
         self_play_sync_every = n_sync
         opp_det = bool(tm.get("self_play_opponent_deterministic", True))
+        use_env_until_first_update = bool(
+            tm.get("self_play_use_env_until_first_update", False)
+        )
 
         initial_spec = tm.get("self_play_opponent_initial")
         initial_opp_fn: Any = None
@@ -144,7 +147,10 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
             opponent_model.load_state_dict(model.state_dict())
         opponent_model.eval()
 
-        self_play_opp_phase = {"use_initial": initial_opp_fn is not None}
+        self_play_opp_phase = {
+            "use_initial": initial_opp_fn is not None,
+            "installed": not use_env_until_first_update or initial_opp_fn is not None,
+        }
         initial_opp_failed = {"value": False}
 
         def _coerce_discrete_action(a: Any) -> int:
@@ -171,11 +177,12 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
                 a_opp, _, _ = opponent_model.act(o, deterministic=opp_det)
             return int(a_opp.item())
 
-        if not install_opponent_policy_on_env(env, _self_play_opponent_policy):
-            raise RuntimeError(
-                "self_play_opponent is enabled but no set_opponent_policy was found on the "
-                "env chain; use team_vs_policy with single_player."
-            )
+        if self_play_opp_phase["installed"]:
+            if not install_opponent_policy_on_env(env, _self_play_opponent_policy):
+                raise RuntimeError(
+                    "self_play_opponent is enabled but no set_opponent_policy was found on the "
+                    "env chain; use team_vs_policy with single_player."
+                )
 
     gamma = float(algo.get("gamma", 0.99))
     lam = float(algo.get("gae_lambda", 0.95))
@@ -372,6 +379,13 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
         if opponent_model is not None and self_play_sync_every is not None:
             if iteration % self_play_sync_every == 0:
                 opponent_model.load_state_dict(model.state_dict())
+                if self_play_opp_phase is not None and not self_play_opp_phase["installed"]:
+                    if not install_opponent_policy_on_env(env, _self_play_opponent_policy):
+                        raise RuntimeError(
+                            "Failed to install self-play opponent on first sync; no "
+                            "set_opponent_policy found on env chain."
+                        )
+                    self_play_opp_phase["installed"] = True
                 if self_play_opp_phase is not None and self_play_opp_phase["use_initial"]:
                     self_play_opp_phase["use_initial"] = False
 
