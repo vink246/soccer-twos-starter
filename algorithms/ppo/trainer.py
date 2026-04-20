@@ -145,13 +145,27 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
         opponent_model.eval()
 
         self_play_opp_phase = {"use_initial": initial_opp_fn is not None}
+        initial_opp_failed = {"value": False}
 
         def _coerce_discrete_action(a: Any) -> int:
             return int(np.asarray(a, dtype=np.int64).reshape(-1)[0])
 
         def _self_play_opponent_policy(obs_opp: Any, *_args: Any, **_kwargs: Any) -> int:
             if self_play_opp_phase["use_initial"] and initial_opp_fn is not None:
-                return _coerce_discrete_action(initial_opp_fn(obs_opp))
+                try:
+                    return _coerce_discrete_action(initial_opp_fn(obs_opp))
+                except Exception as exc:
+                    # Some CEIA setups bootstrap Ray/Redis lazily and can fail on clusters.
+                    # Fall back to snapshot self-play instead of crashing training.
+                    if not initial_opp_failed["value"]:
+                        print(
+                            "Warning: self_play_opponent_initial failed; "
+                            "switching to learner snapshot opponent. "
+                            f"reason={type(exc).__name__}: {exc}"
+                        )
+                        initial_opp_failed["value"] = True
+                    opponent_model.load_state_dict(model.state_dict())
+                    self_play_opp_phase["use_initial"] = False
             o = torch.as_tensor(obs_opp, dtype=torch.float32, device=device).unsqueeze(0)
             with torch.no_grad():
                 a_opp, _, _ = opponent_model.act(o, deterministic=opp_det)
