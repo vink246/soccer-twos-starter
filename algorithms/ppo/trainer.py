@@ -1,7 +1,7 @@
 import random
 from collections import deque
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import gym
 import numpy as np
@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from models.registry import build_model
-from soccer_rl.env_factory import build_make_kwargs
+from soccer_rl.env_factory import build_make_kwargs, install_opponent_policy_on_env
 from soccer_rl.policy_checkpoint import build_actor_policy_from_spec
 from soccer_rl.policy_presets import build_policy
 from soccer_rl.training.metrics import MetricsLogger, episode_goal_estimate
@@ -112,6 +112,56 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
         setter = getattr(env, "set_teammate_policy", None)
         if callable(setter):
             setter(_self_teammate_policy)
+
+    opponent_model = None
+    self_play_sync_every: Optional[int] = None
+    self_play_opp_phase: Optional[Dict[str, Any]] = None
+    if single and bool(tm.get("self_play_opponent", False)):
+        n_sync = int(tm.get("self_play_update_every_iterations", 50))
+        if n_sync < 1:
+            raise ValueError("training_mode.self_play_update_every_iterations must be >= 1")
+        self_play_sync_every = n_sync
+        opp_det = bool(tm.get("self_play_opponent_deterministic", True))
+
+        initial_spec = tm.get("self_play_opponent_initial")
+        initial_opp_fn: Any = None
+        if initial_spec is not None:
+            if isinstance(initial_spec, str):
+                initial_opp_fn = build_policy(initial_spec, team_action_space)
+            elif isinstance(initial_spec, dict):
+                initial_opp_fn = build_actor_policy_from_spec(
+                    initial_spec, team_action_space
+                )
+            elif callable(initial_spec):
+                initial_opp_fn = initial_spec
+            else:
+                raise TypeError(
+                    "training_mode.self_play_opponent_initial must be str, dict, or callable"
+                )
+
+        opponent_model = build_model(arch, obs_dim, n_act, model_cfg).to(device)
+        if initial_opp_fn is None:
+            opponent_model.load_state_dict(model.state_dict())
+        opponent_model.eval()
+
+        self_play_opp_phase = {"use_initial": initial_opp_fn is not None}
+
+        def _coerce_discrete_action(a: Any) -> int:
+            return int(np.asarray(a, dtype=np.int64).reshape(-1)[0])
+
+        def _self_play_opponent_policy(obs_opp: Any, *_args: Any, **_kwargs: Any) -> int:
+            if self_play_opp_phase["use_initial"] and initial_opp_fn is not None:
+                return _coerce_discrete_action(initial_opp_fn(obs_opp))
+            o = torch.as_tensor(obs_opp, dtype=torch.float32, device=device).unsqueeze(0)
+            with torch.no_grad():
+                a_opp, _, _ = opponent_model.act(o, deterministic=opp_det)
+            return int(a_opp.item())
+
+        if not install_opponent_policy_on_env(env, _self_play_opponent_policy):
+            raise RuntimeError(
+                "self_play_opponent is enabled but no set_opponent_policy was found on the "
+                "env chain; use team_vs_policy with single_player."
+            )
 
     gamma = float(algo.get("gamma", 0.99))
     lam = float(algo.get("gae_lambda", 0.95))
@@ -305,6 +355,12 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
                 n_updates += 1
 
         iteration += 1
+        if opponent_model is not None and self_play_sync_every is not None:
+            if iteration % self_play_sync_every == 0:
+                opponent_model.load_state_dict(model.state_dict())
+                if self_play_opp_phase is not None and self_play_opp_phase["use_initial"]:
+                    self_play_opp_phase["use_initial"] = False
+
         if n_updates == 0:
             n_updates = 1
         ep_mean = float(np.mean(ep_returns)) if ep_returns else 0.0

@@ -1,0 +1,75 @@
+run:
+  name: ppo_single_dense_self_play_10m
+  seed: 0
+  local_dir: runs
+  checkpoint_every_iterations: 50
+  plot_on_checkpoints: true
+  stop:
+    total_timesteps: 10000000
+
+device: auto
+
+training_mode:
+  single_agent: true
+  # make() opponent until trainer installs self-play (still is cheap / unused once installed).
+  opponent_policy: still
+  self_teammate: true
+  self_teammate_deterministic: true
+  self_play_opponent: true
+  # Until the first snapshot sync, both opponent agents use CEIA; then learner snapshots every N iters.
+  self_play_opponent_initial: ceia_baseline
+  self_play_update_every_iterations: 200
+  self_play_opponent_deterministic: true
+
+env:
+  flatten_branched: true
+  base_port: 50039
+  worker_id: 0
+
+metrics:
+  goal_reward_threshold: 0.25
+  sparse_goal_reward_threshold: 0.9
+
+algorithm:
+  type: ppo
+  lr: 0.0001
+  ent_coef: 0.02
+  vf_coef: 0.35
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.15
+  max_grad_norm: 0.5
+  n_epochs: 3
+  batch_size: 1024
+
+rollout:
+  n_steps: 4096
+
+model:
+  architecture: mlp_actor_critic
+  hidden_sizes: [512, 512]
+
+dense_reward:
+  enabled: true
+  sparse_weight: 1.1
+  clip: 0.4
+  terms:
+    ball_opponent_goal_potential_delta:
+      weight: 0.08
+      opponent_goal_xy: [1.0, 0.0]
+    ball_vel_attack_component:
+      weight: 0.025
+      axis: 0
+      attack_sign: 1.0
+    distance_to_ball_closer_delta:
+      weight: 0.018
+      distance_scale: 1.0
+    ball_own_goal_threat_gaussian:
+      weight: 0.045
+      sigma: 0.35
+      own_goal_xy: [-1.0, 0.0]
+    screen_own_goal:
+      weight: 0.02
+      axis: 0
+      attack_sign: 1.0
+      own_goal_xy: [-1.0, 0.0]

@@ -138,6 +138,23 @@ def install_teammate_policy_on_env(env: Any, teammate_policy: Any) -> None:
         cur = getattr(cur, "env", None)
 
 
+def install_opponent_policy_on_env(env: Any, opponent_policy: Any) -> bool:
+    """
+    Walk the wrapper chain and call ``set_opponent_policy`` on ``TeamVsPolicyWrapper``
+    when present (same pattern as ``install_teammate_policy_on_env``).
+    """
+    if opponent_policy is None or not callable(opponent_policy):
+        return False
+    cur: Any = env
+    while cur is not None:
+        setter = getattr(cur, "set_opponent_policy", None)
+        if callable(setter):
+            setter(opponent_policy)
+            return True
+        cur = getattr(cur, "env", None)
+    return False
+
+
 def _soccer_twos_make_with_additional_args(
     env_config: Dict[str, Any], additional_args: List[str]
 ) -> Any:
