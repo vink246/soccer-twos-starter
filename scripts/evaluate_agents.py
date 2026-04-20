@@ -54,7 +54,8 @@ def _extract_two_actions(actions: Dict[Any, Any], who: str) -> Tuple[Any, Any]:
 def run_games(agent1_module: str, agent2_module: str, games: int, render: bool) -> None:
     env = soccer_twos.make(
         variation=EnvType.multiagent_player,
-        flatten_branched=True,
+        # Match soccer_twos.watch-style AgentInterface behavior (branched actions).
+        flatten_branched=False,
         render=render,
     )
     try:
