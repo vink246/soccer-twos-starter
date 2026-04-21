@@ -2,7 +2,15 @@
 
 **Agent name:** PPO Single dense vs CEIA (checkpoint)
 
-Loads weights trained with `configs/train_single_ppo_dense_vs_ceia_self_teammate.yaml`:
+## Training
+
+```bash
+python scripts/train.py --config configs/train_single_ppo_dense_vs_ceia_self_teammate.yaml
+```
+
+That config uses **PPO**, **vs CEIA baseline** opponent, **self-teammate**, **dense reward shaping**, and **`mlp_actor_critic` with hidden sizes \[256, 256\]** (see `model:` in the YAML). Policy code is **self-contained** in **`model.py`**.
+
+Loads weights from a run matching the above (checkpoint path is typically `runs/ppo_single_dense_vs_ceia_self_teammate/...`).
 
 - **Obs:** 336 per player  
 - **Action:** Discrete(27) (flattened), mapped through `ActionFlattener` for `soccer_twos.watch`

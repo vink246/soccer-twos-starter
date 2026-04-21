@@ -97,6 +97,22 @@ def train(config: Dict[str, Any], env, run_paths: Dict[str, Path]) -> None:
     model_cfg = config.get("model") or {}
     arch = model_cfg.get("architecture", "mlp_actor_critic")
     model = build_model(arch, obs_dim, n_act, model_cfg).to(device)
+    resume_path = run_cfg.get("resume_from_checkpoint")
+    if resume_path:
+        resume_file = Path(str(resume_path)).expanduser()
+        if not resume_file.is_absolute():
+            resume_file = (Path.cwd() / resume_file).resolve()
+        if not resume_file.is_file():
+            raise FileNotFoundError(
+                "run.resume_from_checkpoint path not found: %s" % resume_file
+            )
+        state = torch.load(resume_file, map_location=device)
+        if not isinstance(state, dict):
+            raise TypeError(
+                "run.resume_from_checkpoint must point to a state_dict checkpoint"
+            )
+        model.load_state_dict(state, strict=bool(run_cfg.get("resume_strict", True)))
+        print("Resumed learner weights from %s" % resume_file)
     opt = optim.Adam(model.parameters(), lr=float(algo.get("lr", 3e-4)))
     if single and bool(tm.get("self_teammate", False)):
         # TeamVsPolicyWrapper supports swapping teammate policy at runtime. This closure

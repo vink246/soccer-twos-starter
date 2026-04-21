@@ -2,9 +2,15 @@
 
 **Agent name:** PPO Single (checkpoint)
 
-Loads a PyTorch PPO checkpoint trained with **per-player 336-dim observations** and **Discrete(27)** actions.
-For `soccer_twos.watch` (which typically expects MultiDiscrete branched actions), this agent uses
-`gym_unity.ActionFlattener` to convert the flat action index to branched actions.
+## Training (how to reproduce the architecture)
+
+Train with this repo’s PPO stack, for example:
+
+`python scripts/train.py --config configs/train_single_ppo_still.yaml`
+
+Use any single-agent config where the learner sees **per-player 336-dim** observations and **Discrete(27)** actions; set `model.hidden_sizes` in the YAML to match **`HIDDEN_SIZES`** in `agent.py` (default **\[256, 256\]**). Policy construction is **self-contained** in **`model.py`**.
+
+At inference, load a PPO checkpoint with matching shapes. For `soccer_twos.watch` (which typically expects MultiDiscrete branched actions), this agent uses `gym_unity.ActionFlattener` to map the flat action index to branched actions.
 
 ## Setup
 

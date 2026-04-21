@@ -12,7 +12,7 @@ import numpy as np
 import torch
 from gym_unity.envs import ActionFlattener
 
-from models.registry import build_model
+from .model import build_model
 from soccer_twos import AgentInterface
 
 OBS_DIM = 336

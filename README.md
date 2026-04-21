@@ -74,6 +74,7 @@ python scripts/train.py --config configs/train_single_ppo_still.yaml
 To receive full credit on the assignment and ensure the teaching staff can properly compile your code, you must follow these instructions:
 
 - Implement a class that inherits from `soccer_twos.AgentInterface` and implements an `act` method. Example agents live under the [`agents/`](agents/) directory (see [`agents/example_player_agent/`](agents/example_player_agent/) and [`agents/example_team_agent/`](agents/example_team_agent/)).
+- PyTorch checkpoint agents in this repo include a local **`model.py`** next to **`agent.py`** so submissions stay self-contained; see [`agents/README.md`](agents/README.md) for how each bundled policy was trained and what to zip.
 - Fill in your agent's information in the `README.md` file (agent name, authors & emails, and description)
 - Compress each agent's module folder as `.zip`.
 
