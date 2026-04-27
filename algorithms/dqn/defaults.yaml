@@ -1,0 +1,19 @@
+algorithm:
+  type: dqn
+  lr: 0.0001
+  gamma: 0.99
+  batch_size: 64
+  buffer_size: 50000
+  learning_starts: 1000
+  train_freq: 4
+  target_update_freq: 1000
+  epsilon_start: 1.0
+  epsilon_end: 0.05
+  epsilon_decay_steps: 50000
+
+model:
+  architecture: mlp_q
+  hidden_sizes: [256, 256]
+
+rollout:
+  n_steps: 1

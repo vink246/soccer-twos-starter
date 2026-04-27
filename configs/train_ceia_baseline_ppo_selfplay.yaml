@@ -1,0 +1,65 @@
+# CEIA baseline (agents/ceia_baseline_agent): README agent name CEIA_PPOMultiagentSelfPlay.
+# Original training was Ray RLlib PPO with 2v2 self-play: four policy slots
+# (default, opponent_1, opponent_2, opponent_3) but only "default" was trained;
+# see agents/ceia_baseline_agent/ray_results/PPO_selfplay_twos/.../params.json.
+#
+# The block below is a faithful summary of that Ray run (minus local paths and
+# pickled space objects). It is ignored by scripts/train.py — only the standard
+# keys (run, training_mode, env, …) are consumed by the PyTorch trainers.
+
+ceia_ray_rllib_reference:
+  experiment_dir: PPO_selfplay_twos
+  algorithm: PPO
+  framework: torch
+  batch_mode: complete_episodes
+  env: Soccer
+  rollout_fragment_length: 5000
+  num_workers: 8
+  num_gpus: 1
+  num_envs_per_worker: 3
+  log_level: INFO
+  env_config:
+    num_envs_per_worker: 3
+  model:
+    fcnet_hiddens: [256, 256]
+    fcnet_activation: relu
+    vf_share_layers: true
+  multiagent:
+    policy_names: [default, opponent_1, opponent_2, opponent_3]
+    policies_to_train: [default]
+
+# --- PyTorch trainer (soccer_rl): rough analogue, not equivalent to self-play ---
+run:
+  name: ceia_style_ppo_team_reference
+  seed: 0
+  local_dir: runs
+  checkpoint_every_iterations: 10
+  stop:
+    total_timesteps: 500000
+
+device: auto
+
+training_mode:
+  single_agent: false
+  # CEIA used learned opponent policies via RLlib multiagent; this trainer only
+  # supports string presets (still / random) for the opposing team.
+  opponent_team_policy: random
+
+env:
+  flatten_branched: true
+  base_port: 50042
+  worker_id: 0
+
+metrics:
+  goal_reward_threshold: 0.25
+
+algorithm:
+  type: ppo
+
+# RLlib used rollout_fragment_length 5000; use a longer horizon here if desired.
+rollout:
+  n_steps: 5000
+
+model:
+  architecture: mlp_actor_critic
+  hidden_sizes: [256, 256]

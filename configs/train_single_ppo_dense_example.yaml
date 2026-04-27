@@ -1,0 +1,71 @@
+# Example: enable dense shaping on top of default Unity sparse rewards.
+# Copy values into your own config or use: python scripts/train.py --config configs/train_single_ppo_dense_example.yaml
+#
+# Tune own_goal_xy / opponent_goal_xy to match your Unity pitch coordinates once
+# you inspect info["player_info"]["position"] and goals.
+
+run:
+  name: ppo_single_dense_example
+  seed: 0
+  local_dir: runs
+  checkpoint_every_iterations: 10
+  stop:
+    total_timesteps: 50000
+
+device: auto
+
+training_mode:
+  single_agent: true
+  teammate_policy: still
+  opponent_policy: still
+
+env:
+  flatten_branched: true
+  base_port: 50039
+  worker_id: 0
+
+metrics:
+  goal_reward_threshold: 0.25
+
+algorithm:
+  type: ppo
+
+rollout:
+  n_steps: 1024
+
+model:
+  architecture: mlp_actor_critic
+  hidden_sizes: [256, 256]
+
+dense_reward:
+  enabled: true
+  sparse_weight: 1.0
+  # clip: 0.25
+  terms:
+    ball_vel_attack_component:
+      weight: 0.015
+      axis: 0
+      attack_sign: 1.0
+    ball_opponent_goal_potential_delta:
+      weight: 0.05
+      opponent_goal_xy: [1.0, 0.0]
+    distance_to_ball_closer_delta:
+      weight: 0.02
+      distance_scale: 1.0
+    screen_own_goal:
+      weight: 0.04
+      axis: 0
+      attack_sign: 1.0
+      own_goal_xy: [-1.0, 0.0]
+    ball_own_goal_threat_gaussian:
+      weight: 0.08
+      sigma: 0.35
+      own_goal_xy: [-1.0, 0.0]
+    # Requires opponent position + heading indices in the 336-dim obs (calibrate per build):
+    # hide_ball_from_opponent_los:
+    #   weight: 0.02
+    #   opponent_pos_obs: [100, 101]
+    #   opponent_yaw_obs: 102
+    #   yaw_in_degrees: true
+    #   fov_degrees: 120
+    #   max_range: 50.0

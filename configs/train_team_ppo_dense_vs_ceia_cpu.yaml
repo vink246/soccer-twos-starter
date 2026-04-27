@@ -1,0 +1,86 @@
+# Team PPO + dense rewards vs CEIA Ray RLlib baseline (agents/ceia_baseline_agent).
+#
+# Cluster-oriented (CPU-only ~12 cores, 64 GB): Unity time_scale, large rollouts, wide batches.
+# PPO/dense knobs tuned after dense-vs-random runs: lower lr + tighter clip + more entropy,
+# lighter vf head, sparse_weight>1, slightly softer dense (less late-train oscillation).
+#
+# Prereq: baseline bundle under agents/ceia_baseline_agent/ (checkpoint + params.pkl).
+#
+# Suggested shell:
+#   export OMP_NUM_THREADS=12 MKL_NUM_THREADS=12 OPENBLAS_NUM_THREADS=12
+#   conda run -n soccertwos python scripts/train.py --config configs/train_team_ppo_dense_vs_ceia_cpu.yaml
+
+run:
+  name: ppo_team_dense_vs_ceia_cpu
+  seed: 0
+  local_dir: runs
+  checkpoint_every_iterations: 25
+  plot_on_checkpoint: false
+  cpu_torch_threads: 12
+  stop:
+    total_timesteps: 2000000
+
+device: cpu
+
+training_mode:
+  single_agent: false
+  opponent_team_policy: ceia_baseline
+
+env:
+  flatten_branched: true
+  base_port: 50041
+  worker_id: 0
+  time_scale: 30
+
+metrics:
+  # Dense-based goals_per_episode_mean remains heuristic. Use sparse_* metrics for cleaner signal.
+  goal_reward_threshold: 0.25
+  # Approximate sparse goal event threshold (tune if your env sparse scale differs).
+  sparse_goal_reward_threshold: 0.9
+
+algorithm:
+  type: ppo
+  lr: 0.0001
+  ent_coef: 0.02
+  vf_coef: 0.35
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.15
+  max_grad_norm: 0.5
+  n_epochs: 3
+  batch_size: 1024
+
+rollout:
+  n_steps: 4096
+
+model:
+  architecture: mlp_actor_critic
+  hidden_sizes: [256, 256]
+
+dense_reward:
+  enabled: true
+  # Slightly favor Unity sparse goals vs shaping (helps avoid dense-only local optima).
+  sparse_weight: 1.12
+  clip: 0.4
+  terms:
+    # --- scoring (delta-style terms; avoid constant per-step distance penalties) ---
+    ball_vel_attack_component:
+      weight: 0.022
+      axis: 0
+      attack_sign: 1.0
+    ball_opponent_goal_potential_delta:
+      weight: 0.085
+      opponent_goal_xy: [1.0, 0.0]
+    distance_to_ball_closer_delta:
+      weight: 0.018
+      distance_scale: 1.0
+    # --- light defense ---
+    screen_own_goal:
+      weight: 0.015
+      axis: 0
+      attack_sign: 1.0
+      own_goal_xy: [-1.0, 0.0]
+    ball_own_goal_threat_gaussian:
+      weight: 0.03
+      sigma: 0.35
+      own_goal_xy: [-1.0, 0.0]

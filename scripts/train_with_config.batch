@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# SLURM job: run PPO training with a YAML config passed as the first argument.
+# Submit from the repository root, for example:
+#   sbatch scripts/train_with_config.batch configs/train_single_ppo_dense_self_play_10m.yaml
+
+#SBATCH --job-name=soccerstwos-train
+#SBATCH -N4 --ntasks-per-node=8
+#SBATCH --mem-per-cpu=8G
+#SBATCH -t12:00:00
+#SBATCH --output=soccerstwos-%j.out
+#SBATCH --mail-type=BEGIN,END,FAIL
+#SBATCH --mail-user=YOUR_USERNAME@gatech.edu
+
+set -euo pipefail
+
+CONFIG="${1:?Usage: sbatch scripts/train_with_config.batch <path-to-config.yaml>}"
+
+if [[ ! -f "$CONFIG" ]]; then
+  echo "Config file not found: $CONFIG" >&2
+  exit 1
+fi
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate soccertwos
+
+cd "${SLURM_SUBMIT_DIR:-.}"
+
+python scripts/train.py --config "$CONFIG"

@@ -1,0 +1,72 @@
+# PPO team (multiagent_team) vs random opponent team + dense reward shaping.
+# Tune own_goal_xy / opponent_goal_xy after inspecting info positions for your build.
+
+run:
+  name: ppo_team_dense_vs_random
+  seed: 0
+  local_dir: runs
+  checkpoint_every_iterations: 50
+  plot_on_checkpoint: true
+  stop:
+    total_timesteps: 2000000
+
+device: auto
+
+training_mode:
+  single_agent: false
+  opponent_team_policy: random
+
+env:
+  flatten_branched: true
+  base_port: 50041
+  worker_id: 0
+
+metrics:
+  goal_reward_threshold: 0.25
+
+algorithm:
+  type: ppo
+  # Slightly conservative vs default 3e-4: dense + sparse mix can make returns noisier.
+  lr: 0.0002
+  ent_coef: 0.015
+  vf_coef: 0.5
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  max_grad_norm: 0.5
+  n_epochs: 5
+  batch_size: 512
+
+rollout:
+  # Larger rollouts than 1024: lower-variance advantage estimates for joint team actions.
+  n_steps: 2048
+
+model:
+  architecture: mlp_actor_critic
+  hidden_sizes: [256, 256]
+
+dense_reward:
+  enabled: true
+  sparse_weight: 1.0
+  # Cap per-step dense magnitude so value targets do not explode when terms align.
+  clip: 0.5
+  terms:
+    ball_vel_attack_component:
+      weight: 0.012
+      axis: 0
+      attack_sign: 1.0
+    ball_opponent_goal_potential_delta:
+      weight: 0.04
+      opponent_goal_xy: [1.0, 0.0]
+    distance_to_ball_closer_delta:
+      weight: 0.016
+      distance_scale: 1.0
+    screen_own_goal:
+      weight: 0.032
+      axis: 0
+      attack_sign: 1.0
+      own_goal_xy: [-1.0, 0.0]
+    ball_own_goal_threat_gaussian:
+      weight: 0.06
+      sigma: 0.35
+      own_goal_xy: [-1.0, 0.0]

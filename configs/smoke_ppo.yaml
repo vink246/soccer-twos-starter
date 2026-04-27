@@ -1,0 +1,34 @@
+# Minimal PPO run for CI / local smoke (short horizon). Not for real training.
+run:
+  name: smoke_ppo
+  seed: 0
+  local_dir: runs
+  checkpoint_every_iterations: 9999
+  plot_every_episodes: 0
+  stop:
+    total_timesteps: 512
+
+device: cpu
+
+training_mode:
+  single_agent: true
+  teammate_policy: still
+  opponent_policy: still
+
+env:
+  flatten_branched: true
+  base_port: 50039
+  worker_id: 7
+
+metrics:
+  goal_reward_threshold: 0.25
+
+algorithm:
+  type: ppo
+
+rollout:
+  n_steps: 128
+
+model:
+  architecture: mlp_actor_critic
+  hidden_sizes: [64, 64]

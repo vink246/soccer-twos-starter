@@ -1,0 +1,9 @@
+# Matches train_team_ppo_dense_vs_random.yaml / env_factory team setup.
+variation: multiagent_team
+flatten_branched: true
+obs_dim: 672
+joint_action_dim: 729
+actions_per_player: 27
+model:
+  architecture: mlp_actor_critic
+  hidden_sizes: [256, 256]
